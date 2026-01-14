@@ -1,0 +1,154 @@
+// 🔒 RATE LIMITING MIDDLEWARE (Step 2 - Brute Force Prevention)
+// Location: backend/middlewares/rateLimiter.js
+
+const rateLimit = require('express-rate-limit');
+const RedisStore = require('rate-limit-redis');
+
+/**
+ * 🛡️ GLOBAL API RATE LIMITER
+ * Prevents general API abuse across all endpoints
+ */
+exports.globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: {
+        success: false,
+        message: "Too many requests from this IP, please try again later."
+    },
+    standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
+    legacyHeaders: false, // Disable `X-RateLimit-*` headers
+});
+
+/**
+ * 🔒 LOGIN RATE LIMITER (Aggressive - Brute Force Protection)
+ * Limits login attempts per IP address
+ */
+exports.loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Max 10 login attempts per 15 minutes per IP
+    skipSuccessfulRequests: true, // Don't count successful logins
+    message: {
+        success: false,
+        message: "Too many login attempts from this IP. Please try again after 15 minutes.",
+        rateLimited: true
+    },
+    handler: (req, res) => {
+        // Log suspicious activity
+        console.warn(`🚨 RATE LIMIT EXCEEDED: IP ${req.ip} attempted too many logins`);
+
+        res.status(429).json({
+            success: false,
+            message: "Too many login attempts. Your IP has been temporarily blocked.",
+            rateLimited: true,
+            retryAfter: 15 // minutes
+        });
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+/**
+ * 🔒 STRICT LOGIN LIMITER (Per Email - Account Protection)
+ * Limits login attempts per specific email address
+ * Use this in addition to IP-based limiting
+ */
+exports.createAccountLoginLimiter = () => {
+    const loginAttempts = new Map(); // Store: email -> { count, resetTime }
+
+    return (req, res, next) => {
+        const email = req.body.email;
+
+        if (!email) {
+            return next();
+        }
+
+        const now = Date.now();
+        const maxAttempts = 5;
+        const windowMs = 15 * 60 * 1000; // 15 minutes
+
+        // Get or initialize attempt record
+        let attemptRecord = loginAttempts.get(email);
+
+        if (!attemptRecord || now > attemptRecord.resetTime) {
+            // Reset window
+            attemptRecord = {
+                count: 0,
+                resetTime: now + windowMs
+            };
+        }
+
+        // Check if limit exceeded
+        if (attemptRecord.count >= maxAttempts) {
+            const minutesRemaining = Math.ceil((attemptRecord.resetTime - now) / 60000);
+
+            console.warn(`🚨 ACCOUNT RATE LIMIT: ${email} exceeded login attempts`);
+
+            return res.status(429).json({
+                success: false,
+                message: `Too many login attempts for this account. Try again in ${minutesRemaining} minutes.`,
+                rateLimited: true,
+                requiresCaptcha: true // Signal frontend to show CAPTCHA
+            });
+        }
+
+        // Increment attempt count
+        attemptRecord.count++;
+        loginAttempts.set(email, attemptRecord);
+
+        // Clean up old records periodically (memory management)
+        if (loginAttempts.size > 10000) {
+            const entries = Array.from(loginAttempts.entries());
+            entries.forEach(([key, value]) => {
+                if (now > value.resetTime) {
+                    loginAttempts.delete(key);
+                }
+            });
+        }
+
+        next();
+    };
+};
+
+/**
+ * 🔒 REGISTER RATE LIMITER (Prevent Mass Account Creation)
+ */
+exports.registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5, // Max 5 registrations per hour per IP
+    message: {
+        success: false,
+        message: "Too many accounts created from this IP. Please try again later."
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+/**
+ * 🔒 PASSWORD RESET LIMITER (Prevent Reset Abuse)
+ */
+exports.passwordResetLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 3, // Max 3 password reset requests per hour per IP
+    message: {
+        success: false,
+        message: "Too many password reset requests. Please try again later."
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+/**
+ * 📊 RATE LIMIT INFO MIDDLEWARE
+ * Adds rate limit info to response headers for monitoring
+ */
+exports.addRateLimitInfo = (req, res, next) => {
+    res.on('finish', () => {
+        if (res.getHeader('RateLimit-Remaining')) {
+            const remaining = res.getHeader('RateLimit-Remaining');
+            if (remaining < 10) {
+                console.warn(`⚠️ Low rate limit remaining for IP ${req.ip}: ${remaining} requests left`);
+            }
+        }
+    });
+    next();
+};
