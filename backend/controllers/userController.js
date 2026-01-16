@@ -32,12 +32,9 @@ const setTokenCookie = (res, token) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
-        path: '/' // 🔒 CRITICAL: Ensure cookie works for all routes
+        maxAge: 15 * 60 * 1000,
+        path: '/'
     };
-
-    console.log('🍪 Setting cookie with options:', cookieOptions);
-    console.log('🔑 Token (first 50 chars):', token.substring(0, 50));
 
     res.cookie('token', token, cookieOptions);
 };
@@ -49,9 +46,8 @@ const clearTokenCookie = (res) => {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         path: '/',
-        expires: new Date(0) // Expire immediately
+        expires: new Date(0)
     });
-    console.log('🗑️ Cookie cleared');
 };
 
 const transporter = nodemailer.createTransport({
@@ -64,10 +60,12 @@ const transporter = nodemailer.createTransport({
 
 // 🔒 CONSTANTS FOR SECURITY POLICIES
 const MAX_LOGIN_ATTEMPTS = 5;
-const LOCK_TIME = 15 * 60 * 1000; // 15 minutes
+const LOCK_TIME = 15 * 60 * 1000;
 const PASSWORD_HISTORY_LIMIT = 5;
 
-// Send Reset Link
+// ==========================================
+// SEND RESET LINK
+// ==========================================
 exports.sendResetLink = async (req, res) => {
     const { email } = req.body;
     try {
@@ -96,7 +94,9 @@ exports.sendResetLink = async (req, res) => {
     }
 };
 
-// Reset Password
+// ==========================================
+// RESET PASSWORD
+// ==========================================
 exports.resetPassword = async (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
@@ -131,8 +131,8 @@ exports.resetPassword = async (req, res) => {
         user.passwordHistory.unshift(user.password);
         user.passwordHistory = user.passwordHistory.slice(0, PASSWORD_HISTORY_LIMIT);
 
-        const hashed = await bcrypt.hash(password, 12);
-        user.password = hashed;
+        // ✅ Pass plain password - will be hashed by pre-save hook
+        user.password = password;
         user.passwordChangedAt = Date.now();
 
         await user.save();
@@ -152,9 +152,11 @@ exports.resetPassword = async (req, res) => {
     }
 };
 
-// Register User
+// ==========================================
+// REGISTER USER (WITH ENCRYPTION)
+// ==========================================
 exports.registerUser = async (req, res) => {
-    const { username, email, firstName, lastName, password } = req.body;
+    const { username, email, firstName, lastName, password, phoneNumber, address } = req.body;
     const profileImage = req.file ? req.file.path : null;
 
     if (!username || !email || !password) {
@@ -201,24 +203,30 @@ exports.registerUser = async (req, res) => {
             });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 12);
-
+        // ✅ FIXED: Pass plain password - will be hashed by pre-save hook
+        // 🔐 Create user with encrypted fields
         const newUser = new User({
             username,
             email,
             firstName,
             lastName,
-            password: hashedPassword,
-            profileImage
+            password, // ✅ Plain password - pre-save hook will hash it
+            profileImage,
+            phoneNumber, // 🔐 Will be auto-encrypted by pre-save hook
+            address // 🔐 Will be auto-encrypted by pre-save hook
         });
 
-        await newUser.save();
+        await newUser.save(); // 🔐 Encryption + hashing happens automatically
 
         logSuccessfulLogin(email, req.ip);
 
+        // 🔐 Return safe data (no sensitive info)
+        const safeUserData = newUser.getSafeData();
+
         return res.status(201).json({
             success: true,
-            message: "User registered successfully"
+            message: "User registered successfully",
+            data: safeUserData
         });
 
     } catch (err) {
@@ -238,7 +246,9 @@ exports.registerUser = async (req, res) => {
     }
 };
 
-// 🔒 Login with HTTP-only Cookie
+// ==========================================
+// LOGIN USER
+// ==========================================
 exports.loginUser = async (req, res) => {
     const { email, password } = req.body;
 
@@ -316,19 +326,12 @@ exports.loginUser = async (req, res) => {
             await user.save();
         }
 
-        // 🔒 Generate token
         const token = generateToken(user._id, user.role, user.email);
-        console.log('✅ Token generated successfully');
-
-        // 🔒 Set HTTP-only cookie
         setTokenCookie(res, token);
-        console.log('✅ Cookie set in response');
 
         const { password: _, passwordHistory: __, ...userWithoutPassword } = user._doc;
 
         logSuccessfulLogin(email, req.ip);
-
-        console.log('✅ Sending response to client');
 
         return res.status(200).json({
             success: true,
@@ -345,7 +348,9 @@ exports.loginUser = async (req, res) => {
     }
 };
 
-// Logout
+// ==========================================
+// LOGOUT USER
+// ==========================================
 exports.logoutUser = (req, res) => {
     clearTokenCookie(res);
 
@@ -355,21 +360,42 @@ exports.logoutUser = (req, res) => {
     });
 };
 
-// Get user by ID
+// ==========================================
+// GET USER BY ID (WITH DECRYPTION)
+// ==========================================
 exports.getUser = async (req, res) => {
     try {
         const user = await User.findById(req.params.id).select("-password -passwordHistory");
+        
         if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "User not found"
             });
         }
+
+        // 🔐 Check if requester can see sensitive data
+        const isOwnProfile = req.user && req.user._id.toString() === user._id.toString();
+        const isAdmin = req.user && req.user.role === 'admin';
+
+        let userData;
+
+        if (isOwnProfile || isAdmin) {
+            // 🔐 Return decrypted data for own profile or admin
+            userData = user.getDecryptedData();
+            console.log(`✅ Returning decrypted data to ${isAdmin ? 'admin' : 'user'}`);
+        } else {
+            // 🔐 Return safe data (no sensitive info) for other users
+            userData = user.getSafeData();
+            console.log(`⚠️ Returning safe data (no sensitive info)`);
+        }
+
         return res.status(200).json({
             success: true,
-            data: user
+            data: userData
         });
     } catch (err) {
+        console.error("Get user error:", err);
         return res.status(500).json({
             success: false,
             message: "Server error"
@@ -377,7 +403,9 @@ exports.getUser = async (req, res) => {
     }
 };
 
-// Update user
+// ==========================================
+// UPDATE USER (WITH ENCRYPTION)
+// ==========================================
 exports.updateUser = async (req, res) => {
     try {
         const updateData = { ...req.body };
@@ -390,6 +418,7 @@ exports.updateUser = async (req, res) => {
             });
         }
 
+        // Handle profile image update
         if (req.file) {
             if (user.profileImage) {
                 const oldImagePath = path.join(__dirname, "..", user.profileImage);
@@ -402,18 +431,38 @@ exports.updateUser = async (req, res) => {
             updateData.profileImage = req.file.path;
         }
 
-        const updatedUser = await User.findByIdAndUpdate(
-            req.params.id,
-            updateData,
-            { new: true, runValidators: true }
-        ).select("-password -passwordHistory");
+        // 🔐 Update encrypted fields (if provided)
+        if (updateData.phoneNumber) {
+            user.phoneNumber = updateData.phoneNumber;
+        }
+
+        if (updateData.address) {
+            user.address = {
+                street: updateData.address.street || user.address?.street,
+                city: updateData.address.city || user.address?.city,
+                state: updateData.address.state || user.address?.state,
+                postalCode: updateData.address.postalCode || user.address?.postalCode,
+                country: updateData.address.country || user.address?.country
+            };
+        }
+
+        // Update other non-encrypted fields
+        if (updateData.firstName) user.firstName = updateData.firstName;
+        if (updateData.lastName) user.lastName = updateData.lastName;
+        if (updateData.profileImage) user.profileImage = updateData.profileImage;
+
+        await user.save(); // 🔐 Encryption happens automatically
+
+        // 🔐 Return decrypted data
+        const decryptedUser = user.getDecryptedData();
 
         return res.status(200).json({
             success: true,
             message: "User updated successfully",
-            data: updatedUser,
+            data: decryptedUser,
         });
     } catch (err) {
+        console.error("Update user error:", err);
         return res.status(500).json({
             success: false,
             message: "Server error",
@@ -421,7 +470,9 @@ exports.updateUser = async (req, res) => {
     }
 };
 
-// Change Password
+// ==========================================
+// CHANGE PASSWORD
+// ==========================================
 exports.changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     const userId = req.params.id;
@@ -500,6 +551,36 @@ exports.changePassword = async (req, res) => {
             });
         }
 
+        return res.status(500).json({
+            success: false,
+            message: "Server error"
+        });
+    }
+};
+
+// ==========================================
+// GET CURRENT USER PROFILE (DECRYPTED)
+// ==========================================
+exports.getCurrentUserProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("-password -passwordHistory");
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // 🔐 Return decrypted data
+        const decryptedUser = user.getDecryptedData();
+
+        return res.status(200).json({
+            success: true,
+            data: decryptedUser
+        });
+    } catch (err) {
+        console.error("Get current user error:", err);
         return res.status(500).json({
             success: false,
             message: "Server error"

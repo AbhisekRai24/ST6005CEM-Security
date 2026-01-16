@@ -10,6 +10,8 @@ const {
   sendResetLink,
   changePassword,
   logoutUser, // 🔒 NEW
+  getCurrentUserProfile  // ✅ ADD THIS
+
 
 } = require("../controllers/userController");
 
@@ -69,26 +71,31 @@ router.post(
 );
 
 // ========== PROTECTED ROUTES (Authentication Required) ==========
-// ✅ NEW: Get current authenticated user (any role)
+// // ✅ NEW: Get current authenticated user (any role)
+// router.get(
+//   "/me",
+//   authenticateUser,  // Only needs to be logged in
+//   (req, res) => {
+//     try {
+//       // req.user is set by authenticateUser middleware
+//       res.json({
+//         success: true,
+//         data: req.user
+//       });
+//     } catch (err) {
+//       res.status(500).json({
+//         success: false,
+//         message: "Failed to get user"
+//       });
+//     }
+//   }
+// );
+// ✅ UPDATED: Get current authenticated user with DECRYPTED data
 router.get(
   "/me",
-  authenticateUser,  // Only needs to be logged in
-  (req, res) => {
-    try {
-      // req.user is set by authenticateUser middleware
-      res.json({
-        success: true,
-        data: req.user
-      });
-    } catch (err) {
-      res.status(500).json({
-        success: false,
-        message: "Failed to get user"
-      });
-    }
-  }
+  authenticateUser,
+  getCurrentUserProfile  // ✅ NOW CALLS THE CONTROLLER FUNCTION
 );
-
 // 🔒 Get user - with password expiry check
 router.get(
   "/:id",

@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
     createUser,
-    getUsers,
+    getAllUsers,  // ✅ CHANGED: was 'getUsers', now 'getAllUsers'
     getOneUser,
     updateOne,
     deleteOne
@@ -20,9 +20,9 @@ router.post(
 // 🔒 GET ALL USERS (Admin Only)
 router.get(
     "/",
-    authenticateUser,  // ✅ Already protected ✅
-    isAdmin,           // 🔒 Already protected ✅
-    getUsers
+    authenticateUser,
+    isAdmin,
+    getAllUsers  // ✅ CHANGED: was 'getUsers', now 'getAllUsers'
 );
 
 // 🔒 GET ONE USER (Admin Only)
@@ -48,5 +48,8 @@ router.delete(
     isAdmin,           // 🔒 Check if admin
     deleteOne
 );
+
+
+// Add this to your admin routes: GET /api/admin/users
 
 module.exports = router;

@@ -46,3 +46,9 @@
 [2026-01-14T15:49:01.537Z] SUCCESSFUL LOGIN | Email: marky@gmail.com | IP: 127.0.0.1
 [2026-01-14T15:51:43.239Z] SUCCESSFUL LOGIN | Email: marky@gmail.com | IP: 127.0.0.1
 [2026-01-14T15:57:09.162Z] SUCCESSFUL LOGIN | Email: marky@gmail.com | IP: 127.0.0.1
+[2026-01-14T16:44:10.594Z] SUCCESSFUL LOGIN | Email: test@example.com | IP: 127.0.0.1
+[2026-01-14T16:48:07.404Z] SUCCESSFUL LOGIN | Email: test@example.com | IP: 127.0.0.1
+[2026-01-14T16:54:31.319Z] SUCCESSFUL LOGIN | Email: test@gmail.com | IP: 127.0.0.1
+[2026-01-14T16:55:57.586Z] SUCCESSFUL LOGIN | Email: marky@gmail.com | IP: 127.0.0.1
+[2026-01-14T17:07:54.311Z] SUCCESSFUL LOGIN | Email: test@gmail.com | IP: 127.0.0.1
+[2026-01-14T17:08:58.159Z] SUCCESSFUL LOGIN | Email: test@gmail.com | IP: 127.0.0.1
