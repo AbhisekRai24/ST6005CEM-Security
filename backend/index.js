@@ -1,13 +1,11 @@
-
-
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
 const cors = require("cors");
-const cookieParser = require("cookie-parser"); // 🔒 NEW
-
+const cookieParser = require("cookie-parser");
+const mongoSanitize = require("express-mongo-sanitize");
 
 const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoute");
@@ -18,24 +16,17 @@ const bannerRoutes = require("./routes/admin/bannerRoute");
 const orderRoutes = require("./routes/orderRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const esewaRoutes = require('./routes/esewaRoute');
-
 const userCategoryRoutes = require("./routes/userCategoryRoute");
 const userProductRoutes = require("./routes/userProductRoute");
-
 const adminDashboardRoutes = require("./routes/admin/adminDashboardRoutes");
 
-const nodemailer = require("nodemailer");
-
-
-
-
 const app = express();
-const server = http.createServer(app); // 👈 Create server manually
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // 🔒 Change to your frontend URL
+    origin: "http://localhost:5173",
     methods: ["GET", "POST"],
-    credentials: true // 🔒 Allow cookies
+    credentials: true
   },
 });
 
@@ -54,25 +45,44 @@ io.on("connection", (socket) => {
   });
 });
 
-// 🌍 Middleware
+// ==========================================
+// MIDDLEWARE CONFIGURATION
+// ==========================================
+
+// 1. CORS Configuration
 app.use(cors({
-  origin: "http://localhost:5173", // 🔒 Change to your frontend URL
-  credentials: true // 🔒 Allow cookies to be sent
+  origin: "http://localhost:5173",
+  credentials: true
 }));
+
+// 2. Body Parsers
 app.use(express.json());
-app.use(cookieParser()); // 🔒 NEW: Parse cookies
-// 🔍 Debug middleware to verify cookie-parser is working
+app.use(express.urlencoded({ extended: true }));
+
+// 3. Cookie Parser
+app.use(cookieParser());
+
+
+
+// 5. Debug Middleware (Optional - can remove in production)
 app.use((req, res, next) => {
-  console.log('🍪 Cookies received:', req.cookies);
-  console.log('📦 Raw cookie header:', req.headers.cookie);
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🍪 Cookies received:', req.cookies);
+  }
   next();
 });
+
+// 6. Static Files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// 📦 Connect to MongoDB
+// ==========================================
+// DATABASE CONNECTION
+// ==========================================
 connectDB();
 
-// 🛣️ Routes
+// ==========================================
+// ROUTES
+// ==========================================
 app.use("/api/auth", userRoutes);
 app.use("/api/admin/category", adminCategoryRoutes);
 app.use("/api/admin/product", adminProductRoutes);
@@ -84,5 +94,6 @@ app.use('/api/esewa', esewaRoutes);
 app.use("/api/user/category", userCategoryRoutes);
 app.use("/api/user/product", userProductRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);
+
 
 module.exports = { app, server };
