@@ -62,7 +62,31 @@ app.use(express.urlencoded({ extended: true }));
 // 3. Cookie Parser
 app.use(cookieParser());
 
+// 4. 🛡️ NOSQL INJECTION PROTECTION (Express v5 Compatible) - SIMPLE VERSION
+app.use((req, res, next) => {
+  // Sanitize req.body
+  if (req.body) {
+    req.body = mongoSanitize.sanitize(req.body, {
+      replaceWith: '_'
+    });
+  }
 
+  // Sanitize req.query
+  if (req.query) {
+    req.query = mongoSanitize.sanitize(req.query, {
+      replaceWith: '_'
+    });
+  }
+
+  // Sanitize req.params
+  if (req.params) {
+    req.params = mongoSanitize.sanitize(req.params, {
+      replaceWith: '_'
+    });
+  }
+
+  next();
+});
 
 // 5. Debug Middleware (Optional - can remove in production)
 app.use((req, res, next) => {
