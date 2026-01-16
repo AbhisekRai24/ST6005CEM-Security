@@ -6,6 +6,7 @@ const path = require("path");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const mongoSanitize = require("express-mongo-sanitize");
+const xss = require('xss-clean');
 
 const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoute");
@@ -61,6 +62,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // 3. Cookie Parser
 app.use(cookieParser());
+
+//XSS Protection Middleware
+const xss = require('xss-clean');
 
 // 4. 🛡️ NOSQL INJECTION PROTECTION (Express v5 Compatible) - SIMPLE VERSION
 app.use((req, res, next) => {
