@@ -62,10 +62,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // 3. Cookie Parser
 app.use(cookieParser());
-
-//XSS Protection Middleware
-const xss = require('xss-clean');
-
+// xss protection
+app.use(xss());
 // 4. 🛡️ NOSQL INJECTION PROTECTION (Express v5 Compatible) - SIMPLE VERSION
 app.use((req, res, next) => {
   // Sanitize req.body
