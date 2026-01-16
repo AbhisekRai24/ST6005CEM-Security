@@ -7,6 +7,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const mongoSanitize = require("express-mongo-sanitize");
 const xss = require('xss-clean');
+const helmet = require('helmet');
 
 const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoute");
@@ -59,6 +60,13 @@ app.use(cors({
 // 2. Body Parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
+
 
 // 3. Cookie Parser
 app.use(cookieParser());
