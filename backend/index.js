@@ -51,20 +51,75 @@ io.on("connection", (socket) => {
 // MIDDLEWARE CONFIGURATION
 // ==========================================
 
-// 1. CORS Configuration
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true
-}));
+// 1. 🛡️ HARDENED CORS CONFIGURATION
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests from your frontend or no origin (mobile apps, Postman)
+    const allowedOrigins = [
+      process.env.CLIENT_URL || 'http://localhost:5173',
+      'http://localhost:5173', // Development frontend
+    ];
+
+    // Allow requests with no origin (mobile apps, Postman, server-to-server)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Allow cookies
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Allowed HTTP methods
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'], // Allowed headers
+  exposedHeaders: ['set-cookie'], // Headers that client can access
+  maxAge: 86400, // Cache preflight requests for 24 hours
+  optionsSuccessStatus: 200 // For legacy browsers
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests for all routes
+app.options('*', cors(corsOptions));
 
 // 2. Body Parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+// 2. 🛡️ REQUEST SIZE LIMITING (DoS Protection)
+// Limit JSON payloads to 10kb
+app.use(express.json({
+  limit: '10kb',
+  verify: (req, res, buf, encoding) => {
+    // Optional: Log large payload attempts
+    if (buf.length > 10240) { // 10kb in bytes
+      console.warn(`⚠️ Large payload rejected: ${buf.length} bytes from ${req.ip}`);
+    }
+  }
 }));
+
+// Limit URL-encoded data to 10kb
+app.use(express.urlencoded({
+  extended: true,
+  limit: '10kb',
+  verify: (req, res, buf, encoding) => {
+    if (buf.length > 10240) {
+      console.warn(`⚠️ Large URL-encoded payload rejected: ${buf.length} bytes from ${req.ip}`);
+    }
+  }
+}));
+
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'", "http://localhost:5173"],
+      },
+    },
+    frameguard: { action: "deny" }, // Anti-clickjacking
+    xContentTypeOptions: true,       // nosniff
+  })
+);
 
 
 
@@ -106,6 +161,17 @@ app.use((req, res, next) => {
   next();
 });
 
+
+// 6A. ✅ Allow cross-origin access ONLY for static images
+app.use(
+  "/uploads",
+  helmet({
+    crossOriginResourcePolicy: {
+      policy: "cross-origin",
+    },
+  })
+);
+
 // 6. Static Files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -115,6 +181,20 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 connectDB();
 
 // ==========================================
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    console.error(`❌ Payload too large from ${req.ip}: ${err.message}`);
+
+    return res.status(413).json({
+      success: false,
+      message: 'Request payload too large. Maximum size is 10KB.',
+      error: 'PAYLOAD_TOO_LARGE'
+    });
+  }
+
+  // Pass other errors to default handler
+  next(err);
+});
 // ROUTES
 // ==========================================
 app.use("/api/auth", userRoutes);
