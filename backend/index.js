@@ -19,10 +19,11 @@ const adminUserRoutes = require("./routes/admin/userRouteAdmin");
 const bannerRoutes = require("./routes/admin/bannerRoute");
 const orderRoutes = require("./routes/orderRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const esewaRoutes = require('./routes/esewaRoute');
 const userCategoryRoutes = require("./routes/userCategoryRoute");
 const userProductRoutes = require("./routes/userProductRoute");
 const adminDashboardRoutes = require("./routes/admin/adminDashboardRoutes");
+const esewaRoutes = require("./routes/esweaRoutes");
+
 
 const app = express();
 const server = http.createServer(app);
@@ -206,11 +207,11 @@ app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/admin/banner", bannerRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use('/api/esewa', esewaRoutes);
 app.use("/api/2fa", twoFARoutes);
 app.use("/api/user/category", userCategoryRoutes);
 app.use("/api/user/product", userProductRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);
+app.use("/api/esewa", esewaRoutes);
 
 
 module.exports = { app, server };

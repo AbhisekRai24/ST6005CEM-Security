@@ -1,11 +1,13 @@
 import axios from "./api"; // your configured axios instance
 
 // Fetch all orders (admin/user view)
-export const getAllOrdersApi = () => axios.get("/orders");
+// export const getAllOrdersApi = () => axios.get("/orders");
+export const getAllOrdersApi = () => axios.get("/orders/all");
 
 // Fetch orders by a specific user
 export const getOrdersByUserApi = (userId) =>
-  axios.get(`/orders/${userId}`);
+  // axios.get(`/orders/${userId}`);
+  axios.get(`/orders/user/${userId}`);
 
 // Create a new order (called on checkout)
 export const createOrderApi = (data) =>

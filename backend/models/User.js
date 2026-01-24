@@ -103,7 +103,15 @@ const UserSchema = new mongoose.Schema(
         },
         accountLockedUntil: {
             type: Date
-        }
+        },
+        devices: [
+            {
+                ip: String,
+                userAgent: String,
+                firstSeen: Date,
+                lastSeen: Date
+            }
+        ]
     },
     {
         timestamps: true

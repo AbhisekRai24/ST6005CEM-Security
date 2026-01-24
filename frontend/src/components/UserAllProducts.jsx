@@ -2,7 +2,7 @@
 import axios from "axios"
 import { useState, useEffect, useContext } from "react"
 import { useNavigate } from "react-router-dom"
-import { ShoppingCart, Plus, Package, Grid3x3 } from "lucide-react"
+import { ShoppingCart, Plus, Grid3x3 } from "lucide-react"
 import { getBackendImageUrl } from '../utils/backend-image'
 import { useAdminProduct } from '../hooks/admin/useAdminProduct'
 import { useCreateOrder } from "../hooks/useCreateOrder"
@@ -11,9 +11,9 @@ import UserSidebar from "./UserCartCheckout"
 import { AuthContext } from "../auth/AuthProvider"
 import { generateOrderId } from "../utils/order-utils"
 import { toast } from "react-toastify"
-import OrderTypeModal from "./OrderType"
 import PaymentMethodModal from "./payment/PaymentMethodModal"
 import ProductDetailsModal from "./ProductDetailsModal"
+import DeliveryInfoModal from "./DeliverInfoModal"
 
 export default function UserDashboard() {
   const { user } = useContext(AuthContext)
@@ -31,12 +31,14 @@ export default function UserDashboard() {
 
   const [cart, setCart] = useState([])
   const [isCartOpen, setIsCartOpen] = useState(false)
-
   const [selectedProduct, setSelectedProduct] = useState(null)
 
-  const [isOrderTypeModalOpen, setIsOrderTypeModalOpen] = useState(false)
-  const [selectedOrderType, setSelectedOrderType] = useState(null)
+  // Modal states
   const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false)
+  const [isDeliveryInfoModalOpen, setIsDeliveryInfoModalOpen] = useState(false)
+
+  // Store selected payment method temporarily
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null)
 
   useEffect(() => {
     const storedCart = localStorage.getItem("cart")
@@ -98,19 +100,22 @@ export default function UserDashboard() {
     navigate("/normal/myorders")
   })
 
+  // Step 1: Proceed to Checkout - Open Payment Method Modal
   const handleCheckout = () => {
     if (cart.length === 0) return
-    setIsOrderTypeModalOpen(true)
-  }
-
-  const handleOrderTypeSelect = (type) => {
-    setSelectedOrderType(type)
-    setIsOrderTypeModalOpen(false)
     setIsPaymentMethodModalOpen(true)
   }
 
+  // Step 2: Payment Method Selected - Open Delivery Info Modal
   const handlePaymentMethodSelect = (method) => {
-    setIsPaymentMethodModalOpen(false);
+    setSelectedPaymentMethod(method)
+    setIsPaymentMethodModalOpen(false)
+    setIsDeliveryInfoModalOpen(true)
+  }
+
+  // Step 3: Delivery Info Submitted - Create Order
+  const handleDeliveryInfoSubmit = (deliveryInfo) => {
+    setIsDeliveryInfoModalOpen(false)
 
     const total = cart.reduce((sum, p) => {
       const addonsTotal = (p.selectedAddons || []).reduce(
@@ -122,20 +127,35 @@ export default function UserDashboard() {
 
     const orderId = generateOrderId();
 
+    // Transform cart items to match your Order schema
+    const transformedProducts = cart.map(item => ({
+      _id: item._id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      productImage: item.productImage,
+      addons: (item.selectedAddons || []).map(addon => ({
+        addonId: addon._id || addon.addonId || `addon_${Date.now()}`,
+        name: addon.name,
+        price: addon.price,
+        quantity: addon.quantity
+      }))
+    }));
+
     const order = {
       _id: orderId,
       userId: user._id,
-      products: cart,
+      products: transformedProducts,
       total,
-      orderType: selectedOrderType,
-      paymentMethod: method,
+      paymentMethod: selectedPaymentMethod,
+      deliveryInfo: deliveryInfo
     };
 
     console.log("Order payload:", order);
 
-    if (method === "cash") {
+    if (selectedPaymentMethod === "cash") {
       createOrderMutation.mutate(order);
-    } else if (method === "online") {
+    } else if (selectedPaymentMethod === "online") {
       triggerEsewaPayment(order);
     }
   };
@@ -287,6 +307,7 @@ export default function UserDashboard() {
         </div>
       </div>
 
+      {/* Cart Sidebar */}
       <UserSidebar
         cart={cart}
         isOpen={isCartOpen}
@@ -297,6 +318,7 @@ export default function UserDashboard() {
         onCheckout={handleCheckout}
       />
 
+      {/* Product Details Modal */}
       {selectedProduct && (
         <ProductDetailsModal
           product={selectedProduct}
@@ -305,16 +327,20 @@ export default function UserDashboard() {
         />
       )}
 
-      <OrderTypeModal
-        isOpen={isOrderTypeModalOpen}
-        onClose={() => setIsOrderTypeModalOpen(false)}
-        onSelect={handleOrderTypeSelect}
-      />
-
+      {/* Payment Method Modal */}
       <PaymentMethodModal
         isOpen={isPaymentMethodModalOpen}
         onClose={() => setIsPaymentMethodModalOpen(false)}
         onSelect={handlePaymentMethodSelect}
+      />
+
+      {/* Delivery Info Modal */}
+      <DeliveryInfoModal
+        isOpen={isDeliveryInfoModalOpen}
+        onClose={() => setIsDeliveryInfoModalOpen(false)}
+        onSubmit={handleDeliveryInfoSubmit}
+        userEmail={user?.email}
+        userName={user?.username}
       />
     </div>
   )
