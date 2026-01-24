@@ -10,9 +10,10 @@ const crypto = require("crypto");
 // ==========================================
 // 🔐 SETUP 2FA (Generate QR Code)
 // ==========================================
+// In your setup2FA controller
 exports.setup2FA = async (req, res) => {
     try {
-        const userId = req.user._id; // From authenticateUser middleware
+        const userId = req.user._id;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -22,7 +23,6 @@ exports.setup2FA = async (req, res) => {
             });
         }
 
-        // Check if 2FA is already enabled
         if (user.twoFactorEnabled) {
             return res.status(400).json({
                 success: false,
@@ -30,17 +30,25 @@ exports.setup2FA = async (req, res) => {
             });
         }
 
-        // Generate secret
         const secret = speakeasy.generateSecret({
             name: `RevModz (${user.email})`,
             issuer: 'RevModz'
         });
 
-        // Temporarily store secret (not yet enabled)
-        user.twoFactorSecret = secret.base32;
+        console.log('==================================================');
+        console.log('🔍 SETUP 2FA - DETAILED DEBUG');
+        console.log('==================================================');
+        console.log('User:', user.email);
+        console.log('Generated secret (base32):', secret.base32);
+        console.log('Secret length:', secret.base32.length);
+
+        // ✅ CRITICAL: Clear any existing temp secret first
+        user.twoFactorTempSecret = secret.base32;
         await user.save();
 
-        // Generate QR code
+        console.log('✅ Temp secret saved to database');
+        console.log('==================================================');
+
         qrcode.toDataURL(secret.otpauth_url, (err, dataUrl) => {
             if (err) {
                 console.error("QR code generation error:", err);
@@ -55,7 +63,6 @@ exports.setup2FA = async (req, res) => {
                 message: "Scan this QR code with Google Authenticator or Authy",
                 data: {
                     qrCode: dataUrl,
-                    secret: secret.base32, // Show once for manual entry
                     manualEntryKey: secret.base32
                 }
             });
@@ -69,7 +76,6 @@ exports.setup2FA = async (req, res) => {
         });
     }
 };
-
 // ==========================================
 // 🔐 VERIFY & ENABLE 2FA
 // ==========================================
@@ -78,6 +84,14 @@ exports.verifyAndEnable2FA = async (req, res) => {
         const userId = req.user._id;
         const { token } = req.body;
 
+        console.log('='.repeat(50));
+        console.log('🔍 VERIFY-ENABLE 2FA - DETAILED DEBUG');
+        console.log('='.repeat(50));
+        console.log('User ID:', userId);
+        console.log('Token received:', token);
+        console.log('Token type:', typeof token);
+        console.log('Token length:', token?.length);
+
         if (!token) {
             return res.status(400).json({
                 success: false,
@@ -85,21 +99,44 @@ exports.verifyAndEnable2FA = async (req, res) => {
             });
         }
 
-        const user = await User.findById(userId).select('+twoFactorSecret');
-        if (!user || !user.twoFactorSecret) {
+        // Get the TEMP secret
+        const user = await User.findById(userId).select('+twoFactorTempSecret');
+
+        console.log('User found:', !!user);
+        console.log('User email:', user?.email);
+        console.log('Has twoFactorTempSecret:', !!user?.twoFactorTempSecret);
+        console.log('Temp secret value:', user?.twoFactorTempSecret);
+        console.log('Temp secret length:', user?.twoFactorTempSecret?.length);
+
+        if (!user || !user.twoFactorTempSecret) {
+            console.log('❌ ERROR: Missing user or temp secret');
             return res.status(400).json({
                 success: false,
                 message: "2FA setup not initiated. Please start setup first."
             });
         }
 
-        // Verify the token
+        // Generate what the current valid token SHOULD be
+        const currentValidToken = speakeasy.totp({
+            secret: user.twoFactorTempSecret,
+            encoding: 'base32'
+        });
+
+        console.log('Current valid token:', currentValidToken);
+        console.log('Token you entered:', token);
+        console.log('Do they match?', currentValidToken === token);
+        console.log('Current time:', new Date().toISOString());
+
+        // Try verification with window
         const verified = speakeasy.totp.verify({
-            secret: user.twoFactorSecret,
+            secret: user.twoFactorTempSecret,
             encoding: 'base32',
             token: token,
-            window: 2 // Allow 2 time steps (60 seconds) tolerance
+            window: 6
         });
+
+        console.log('Verification result:', verified);
+        console.log('='.repeat(50));
 
         if (!verified) {
             return res.status(400).json({
@@ -108,19 +145,20 @@ exports.verifyAndEnable2FA = async (req, res) => {
             });
         }
 
-        // Generate backup codes (10 codes)
+        // Generate backup codes
         const backupCodes = [];
         for (let i = 0; i < 10; i++) {
             const code = crypto.randomBytes(4).toString('hex').toUpperCase();
             backupCodes.push(code);
         }
 
-        // Hash backup codes before storing
         const hashedBackupCodes = await Promise.all(
             backupCodes.map(code => bcrypt.hash(code, 10))
         );
 
-        // Enable 2FA
+        // Move temp secret to permanent, clear temp
+        user.twoFactorSecret = user.twoFactorTempSecret;
+        user.twoFactorTempSecret = undefined;
         user.twoFactorEnabled = true;
         user.twoFactorEnabledAt = Date.now();
         user.twoFactorBackupCodes = hashedBackupCodes;
@@ -132,12 +170,12 @@ exports.verifyAndEnable2FA = async (req, res) => {
             success: true,
             message: "2FA enabled successfully! Save your backup codes securely.",
             data: {
-                backupCodes: backupCodes // Return unhashed codes ONCE
+                backupCodes: backupCodes
             }
         });
 
     } catch (err) {
-        console.error("Verify 2FA error:", err);
+        console.error("❌ Verify 2FA error:", err);
         res.status(500).json({
             success: false,
             message: "Server error"
@@ -258,7 +296,7 @@ exports.disable2FA = async (req, res) => {
         }
 
         const user = await User.findById(userId).select('+twoFactorSecret');
-        
+
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -328,7 +366,7 @@ exports.get2FAStatus = async (req, res) => {
         const userId = req.user._id;
 
         const user = await User.findById(userId).select('+twoFactorBackupCodes');
-        
+
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -370,7 +408,7 @@ exports.regenerateBackupCodes = async (req, res) => {
         }
 
         const user = await User.findById(userId).select('+twoFactorSecret');
-        
+
         if (!user || !user.twoFactorEnabled) {
             return res.status(400).json({
                 success: false,

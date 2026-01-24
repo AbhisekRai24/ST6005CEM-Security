@@ -1,9 +1,6 @@
-// 🔐 2FA SETTINGS COMPONENT (For User Profile/Settings Page)
-// Location: frontend/src/components/settings/TwoFASettings.jsx
-
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Shield, Check, X, AlertCircle, Key, RefreshCw } from 'lucide-react';
+import axiosInstance from '../../api/api'; // ✅ Changed from 'axios'
+import { Shield, Check, X, AlertCircle, Key, RefreshCw, Loader2 } from 'lucide-react';
 import TwoFASetup from '../auth/twoFAset';
 
 export default function TwoFASettings() {
@@ -13,6 +10,7 @@ export default function TwoFASettings() {
         backupCodesRemaining: 0
     });
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [showSetup, setShowSetup] = useState(false);
     const [showDisableModal, setShowDisableModal] = useState(false);
     const [showRegenerateModal, setShowRegenerateModal] = useState(false);
@@ -23,18 +21,21 @@ export default function TwoFASettings() {
 
     const fetch2FAStatus = async () => {
         setLoading(true);
+        setError('');
         try {
-            const response = await axios.get(
-                `${import.meta.env.VITE_API_URL}/api/2fa/status`,
-                { withCredentials: true }
-            );
-            setTwoFAStatus(response.data.data);
+            const response = await axiosInstance.get('/2fa/status'); // ✅ Changed
+
+            if (response.data && response.data.data) {
+                setTwoFAStatus(response.data.data);
+            }
         } catch (err) {
             console.error('Failed to fetch 2FA status:', err);
+            setError(err.response?.data?.message || 'Failed to load 2FA settings');
         } finally {
             setLoading(false);
         }
     };
+
 
     const handleSetupSuccess = () => {
         setShowSetup(false);
@@ -43,9 +44,32 @@ export default function TwoFASettings() {
 
     if (loading) {
         return (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-6 mt-6">
                 <div className="flex items-center justify-center py-8">
-                    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ FIXED: Show error state if loading failed
+    if (error && !loading) {
+        return (
+            <div className="bg-white rounded-lg shadow p-6 mt-6">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-semibold text-red-800">Failed to load 2FA settings</p>
+                            <p className="text-sm text-red-600 mt-1">{error}</p>
+                            <button
+                                onClick={fetch2FAStatus}
+                                className="mt-3 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
+                            >
+                                Try Again
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
@@ -80,7 +104,7 @@ export default function TwoFASettings() {
                 />
             )}
 
-            <div className="bg-white rounded-lg shadow">
+            <div className="bg-white rounded-lg shadow mt-6">
                 <div className="p-6 border-b border-gray-200">
                     <div className="flex items-center gap-3">
                         <Shield className="w-6 h-6 text-blue-600" />
@@ -106,9 +130,11 @@ export default function TwoFASettings() {
                                         <p className="text-sm font-semibold text-green-800">
                                             Two-Factor Authentication Enabled
                                         </p>
-                                        <p className="text-xs text-green-600 mt-1">
-                                            Enabled on {new Date(twoFAStatus.twoFactorEnabledAt).toLocaleDateString()}
-                                        </p>
+                                        {twoFAStatus.twoFactorEnabledAt && (
+                                            <p className="text-xs text-green-600 mt-1">
+                                                Enabled on {new Date(twoFAStatus.twoFactorEnabledAt).toLocaleDateString()}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -123,7 +149,7 @@ export default function TwoFASettings() {
                                                 Backup Codes
                                             </p>
                                             <p className="text-xs text-gray-600 mt-0.5">
-                                                {twoFAStatus.backupCodesRemaining} codes remaining
+                                                {twoFAStatus.backupCodesRemaining || 0} codes remaining
                                             </p>
                                         </div>
                                     </div>
@@ -202,11 +228,10 @@ function DisableTwoFAModal({ onClose, onSuccess }) {
         setError('');
 
         try {
-            await axios.post(
-                `${import.meta.env.VITE_API_URL}/api/2fa/disable`,
-                { password, token },
-                { withCredentials: true }
-            );
+            await axiosInstance.post('/2fa/disable', { // ✅ Changed
+                password,
+                token
+            });
             onSuccess();
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to disable 2FA');
@@ -296,11 +321,10 @@ function RegenerateBackupCodesModal({ onClose, onSuccess }) {
         setError('');
 
         try {
-            const response = await axios.post(
-                `${import.meta.env.VITE_API_URL}/api/2fa/regenerate-backup-codes`,
-                { password, token },
-                { withCredentials: true }
-            );
+            const response = await axiosInstance.post('/2fa/regenerate-backup-codes', { // ✅ Changed
+                password,
+                token
+            });
             setNewCodes(response.data.data.backupCodes);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to regenerate codes');
@@ -308,6 +332,7 @@ function RegenerateBackupCodesModal({ onClose, onSuccess }) {
             setLoading(false);
         }
     };
+
 
     const downloadCodes = () => {
         const text = `RevModz 2FA Backup Codes\nGenerated: ${new Date().toLocaleString()}\n\n${newCodes.join('\n')}\n\nIMPORTANT: Keep these codes secure.`;

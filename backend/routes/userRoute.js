@@ -1,3 +1,6 @@
+// 🔐 USER ROUTES WITH 2FA SUPPORT (UPDATED)
+// Location: backend/routes/userRoutes.js
+
 const express = require("express");
 const router = express.Router();
 const upload = require("../middlewares/fileupload");
@@ -9,10 +12,8 @@ const {
   resetPassword,
   sendResetLink,
   changePassword,
-  logoutUser, // 🔒 NEW
-  getCurrentUserProfile  // ✅ ADD THIS
-
-
+  logoutUser,
+  getCurrentUserProfile
 } = require("../controllers/userController");
 
 // 🔒 Import authentication and security middlewares
@@ -39,7 +40,7 @@ const accountLoginLimiter = createAccountLoginLimiter();
 router.post(
   "/register",
   registerLimiter,
-  detectSuspiciousActivity, // Check for malicious input
+  detectSuspiciousActivity,
   upload.single("profileImage"),
   registerUser
 );
@@ -49,13 +50,14 @@ router.post(
   "/login",
   loginLimiter,           // IP-based: 10 attempts per 15 min
   accountLoginLimiter,    // Account-based: 5 attempts per 15 min
-  detectSuspiciousActivity, // Check for malicious input
+  detectSuspiciousActivity,
   loginUser
 );
 
-//logout
+// 🔒 LOGOUT
 router.post("/logout", logoutUser);
 
+// 🔒 REQUEST PASSWORD RESET
 router.post(
   "/request-reset",
   passwordResetLimiter,
@@ -63,6 +65,7 @@ router.post(
   sendResetLink
 );
 
+// 🔒 RESET PASSWORD
 router.post(
   "/reset-password/:token",
   passwordResetLimiter,
@@ -71,32 +74,17 @@ router.post(
 );
 
 // ========== PROTECTED ROUTES (Authentication Required) ==========
-// // ✅ NEW: Get current authenticated user (any role)
-// router.get(
-//   "/me",
-//   authenticateUser,  // Only needs to be logged in
-//   (req, res) => {
-//     try {
-//       // req.user is set by authenticateUser middleware
-//       res.json({
-//         success: true,
-//         data: req.user
-//       });
-//     } catch (err) {
-//       res.status(500).json({
-//         success: false,
-//         message: "Failed to get user"
-//       });
-//     }
-//   }
-// );
-// ✅ UPDATED: Get current authenticated user with DECRYPTED data
+
+// ✅ GET CURRENT USER PROFILE (Primary endpoint for user's own profile)
+// Use this endpoint in your UserProfile component
 router.get(
   "/me",
   authenticateUser,
-  getCurrentUserProfile  // ✅ NOW CALLS THE CONTROLLER FUNCTION
+  getCurrentUserProfile
 );
-// 🔒 Get user - with password expiry check
+
+// 🔒 GET USER BY ID
+// Allows users to view their own profile OR admins to view any profile
 router.get(
   "/:id",
   authenticateUser,
@@ -104,7 +92,8 @@ router.get(
   getUser
 );
 
-// 🔒 Update user - with password expiry check
+// 🔒 UPDATE USER
+// Allows users to update their own profile OR admins to update any profile
 router.put(
   "/:id",
   authenticateUser,
@@ -113,7 +102,7 @@ router.put(
   updateUser
 );
 
-// 🔒 Change password - No rate limit (user is authenticated)
+// 🔒 CHANGE PASSWORD
 router.put(
   "/:id/change-password",
   authenticateUser,

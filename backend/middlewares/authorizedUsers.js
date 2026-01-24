@@ -6,6 +6,8 @@ exports.authenticateUser = async (req, res, next) => {
     try {
         // 🔒 STEP 1: Get token from HTTP-only cookie (NOT Authorization header)
         const token = req.cookies.token;
+        console.log('🍪 ALL COOKIES:', req.cookies);
+        console.log('🔍 Headers:', req.headers);
 
         console.log("🔍 AUTH MIDDLEWARE - REQUEST TO:", req.path);
         console.log("   Cookie token exists:", !!token);
@@ -39,7 +41,7 @@ exports.authenticateUser = async (req, res, next) => {
         // 🔒 STEP 4: Check if password changed after token was issued (SESSION FIXATION PROTECTION)
         if (user.passwordChangedAt) {
             const changedTimestamp = parseInt(user.passwordChangedAt.getTime() / 1000, 10);
-            
+
             if (decoded.iat < changedTimestamp) {
                 console.log("   ⚠️ Password changed after token issued");
                 return res.status(401).json({

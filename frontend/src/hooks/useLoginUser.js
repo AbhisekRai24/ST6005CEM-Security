@@ -1,9 +1,11 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     loginUserService,
-    logoutUserService, // 🔒 NEW
+    logoutUserService,
     updateUserService,
     getUserService,
+    getCurrentUserService,
     requestResetService,
     resetPasswordService
 } from "../services/authService";
@@ -12,6 +14,9 @@ import { useContext, useState } from "react";
 import { AuthContext } from "../auth/AuthProvider";
 import { useNavigate } from "react-router-dom";
 
+// ==========================================
+// PASSWORD RESET
+// ==========================================
 export const useResetPassword = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -43,7 +48,9 @@ export const useResetPassword = () => {
     return { loading, error, requestReset, resetPassword };
 };
 
-// 🔒 UPDATED: Login Hook (HTTP-only Cookie Version)
+// ==========================================
+// LOGIN
+// ==========================================
 export const useLoginUser = () => {
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -54,6 +61,12 @@ export const useLoginUser = () => {
 
         onSuccess: (data) => {
             console.log("🔍 Login Response:", data);
+
+            // 🔐 Check if 2FA is required
+            if (data?.requires2FA) {
+                console.log("🔐 2FA required - handled by LoginForm component");
+                return; // Don't navigate, let the LoginForm handle 2FA modal
+            }
 
             const user = data?.data;
             const role = user?.role;
@@ -67,12 +80,11 @@ export const useLoginUser = () => {
                 return;
             }
 
-            // 🔒 CRITICAL FIX: Call the login function from AuthContext
-            // This updates the user state AND saves to localStorage
+            // Save user to context and localStorage
             console.log("💾 Calling AuthContext login()...");
-            login(user); // ← THIS WAS MISSING!
+            login(user);
 
-            // ✅ VERIFY user was saved
+            // Verify user was saved
             const savedUser = localStorage.getItem("user");
             console.log("✅ User saved?", !!savedUser);
 
@@ -97,7 +109,10 @@ export const useLoginUser = () => {
         },
     });
 };
-// 🔒 NEW: Logout Hook
+
+// ==========================================
+// LOGOUT
+// ==========================================
 export const useLogoutUser = () => {
     const { logout } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -113,7 +128,7 @@ export const useLogoutUser = () => {
             // Clear user data from localStorage
             localStorage.removeItem("user");
 
-            // Call AuthContext logout (if you have additional cleanup)
+            // Call AuthContext logout
             if (logout) {
                 logout();
             }
@@ -137,6 +152,21 @@ export const useLogoutUser = () => {
     });
 };
 
+// ==========================================
+// USER PROFILE
+// ==========================================
+
+// ✅ NEW: Get current authenticated user (preferred for profile page)
+export const useCurrentUser = () => {
+    return useQuery({
+        queryKey: ["currentUser"],
+        queryFn: getCurrentUserService,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        retry: 1
+    });
+};
+
+// ✅ UPDATED: Get user by ID (fallback for specific cases)
 export const useUser = (userId) => {
     return useQuery({
         queryKey: ["user", userId],
@@ -146,6 +176,7 @@ export const useUser = (userId) => {
     });
 };
 
+// ✅ Update user profile
 export const useUpdateUser = (userId) => {
     const queryClient = useQueryClient();
 
@@ -153,7 +184,9 @@ export const useUpdateUser = (userId) => {
         mutationFn: (formData) => updateUserService(userId, formData),
         onSuccess: (data) => {
             toast.success(data?.message || "Profile updated successfully");
-            // Invalidate user query to refresh updated data
+
+            // Invalidate both current user and specific user queries
+            queryClient.invalidateQueries(["currentUser"]);
             queryClient.invalidateQueries(["user", userId]);
         },
         onError: (error) => {

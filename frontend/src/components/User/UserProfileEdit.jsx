@@ -1,13 +1,20 @@
+
+
 import { useContext, useEffect, useState } from "react"
 import { AuthContext } from "../../auth/AuthProvider"
-import { useUser, useUpdateUser } from "../../hooks/useLoginUser"
+import { useCurrentUser, useUpdateUser } from "../../hooks/useLoginUser" // ✅ UPDATED
 import { getBackendImageUrl } from "../../utils/backend-image"
-import { User, Mail, Upload, Save, Camera } from "lucide-react"
+import { User, Mail, Save, Camera, Loader2, AlertCircle } from "lucide-react"
 
 export default function UserProfile() {
-  const { user, setUser } = useContext(AuthContext)
-  const { data: currentUser } = useUser(user._id)
-  const { mutateAsync: updateUser, isPending } = useUpdateUser(user._id)
+  const { user: contextUser, setUser } = useContext(AuthContext)
+
+  // ✅ FIXED: Use useCurrentUser instead of useUser(userId)
+  const { data: currentUser, isLoading, error } = useCurrentUser()
+
+  // ✅ FIXED: Get userId from the fetched currentUser data
+  const userId = currentUser?._id || contextUser?._id
+  const { mutateAsync: updateUser, isPending } = useUpdateUser(userId)
 
   const [form, setForm] = useState({
     username: "",
@@ -62,8 +69,13 @@ export default function UserProfile() {
         formData.append("profileImage", form.profileImage)
       }
 
-      const updatedUser = await updateUser(formData)
-      setUser(updatedUser) // update context with new data
+      const response = await updateUser(formData)
+
+      // ✅ Update context with new data
+      if (response?.data) {
+        setUser(response.data)
+      }
+
       setPreviewUrl(null) // Clear preview after successful update
       alert("Profile updated successfully!")
     } catch (err) {
@@ -74,6 +86,57 @@ export default function UserProfile() {
   // Get the image URL to display
   const displayImageUrl = previewUrl ||
     (typeof form.profileImage === "string" ? getBackendImageUrl(form.profileImage) : null)
+
+  // ✅ ADDED: Loading state
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto mt-8 p-8 bg-white rounded-xl shadow-sm">
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mb-4" />
+          <p className="text-gray-600">Loading your profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ ADDED: Error state
+  if (error) {
+    return (
+      <div className="max-w-2xl mx-auto mt-8 p-8 bg-white rounded-xl shadow-sm">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-6 w-6 text-red-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-lg font-semibold text-red-800 mb-2">
+                Failed to load profile
+              </h3>
+              <p className="text-sm text-red-600 mb-4">
+                {error?.message || "An error occurred while loading your profile"}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ ADDED: Check if user data exists
+  if (!currentUser) {
+    return (
+      <div className="max-w-2xl mx-auto mt-8 p-8 bg-white rounded-xl shadow-sm">
+        <div className="text-center py-12">
+          <User className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600">No profile data available</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-2xl mx-auto mt-8 p-8 bg-white rounded-xl shadow-sm">

@@ -14,7 +14,8 @@ const {
     setup2FA,
     verify2FAToken,
     verifyAndEnable2FA,
-    disable2FA } = require("../controllers/2faController");
+    disable2FA,
+    get2FAStatus } = require("../controllers/2faController");
 
 
 // Use specific limiters
@@ -30,5 +31,5 @@ const twoFALimiter = createStrictRateLimiter({
 
 router.post("/verify-enable", authenticateUser, twoFALimiter, verifyAndEnable2FA);
 router.post("/disable", authenticateUser, twoFALimiter, disable2FA);
-
-module.exports = router; 
+router.get("/status", authenticateUser, get2FAStatus);
+module.exports = router;

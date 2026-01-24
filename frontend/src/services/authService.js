@@ -1,5 +1,18 @@
-import { loginUserApi, logoutUserApi, registerUserApi, getUserByIdApi, updateUserApi, requestResetApi, resetPasswordApi, getCurrentUserApi } from "../api/authApi";
 
+import {
+  loginUserApi,
+  logoutUserApi,
+  registerUserApi,
+  getUserByIdApi,
+  updateUserApi,
+  requestResetApi,
+  resetPasswordApi,
+  getCurrentUserApi // ✅ ADDED
+} from "../api/authApi";
+
+// ==========================================
+// PASSWORD RESET
+// ==========================================
 export const requestResetService = async (email) => {
   return await requestResetApi({ email });
 };
@@ -8,14 +21,18 @@ export const resetPasswordService = async (token, password) => {
   return await resetPasswordApi(token, { password });
 };
 
+// ==========================================
+// AUTHENTICATION
+// ==========================================
 export const registerUserService = async (formData) => {
   try {
     const response = await registerUserApi(formData)
-    return response.data // reponse body
+    return response.data // response body
   } catch (err) {
     throw err.response?.data || { message: "Registration Failed" }
   }
 }
+
 export const loginUserService = async (formData) => {
   try {
     const response = await loginUserApi(formData)
@@ -26,8 +43,6 @@ export const loginUserService = async (formData) => {
   }
 }
 
-
-// 🔒 NEW: Logout Service
 export const logoutUserService = async () => {
   try {
     await logoutUserApi(); // Clears HTTP-only cookie on backend
@@ -37,7 +52,12 @@ export const logoutUserService = async () => {
     throw err.response?.data || { message: "Logout Failed" };
   }
 };
-// ✅ NEW: For auth check on page refresh (any authenticated user)
+
+// ==========================================
+// USER PROFILE
+// ==========================================
+
+// ✅ NEW: Get current authenticated user (primary method for profile page)
 export const getCurrentUserService = async () => {
   try {
     const data = await getCurrentUserApi()
@@ -47,9 +67,7 @@ export const getCurrentUserService = async () => {
   }
 }
 
-
-
-
+// ✅ UPDATED: Get user by ID (fallback method)
 export const getUserService = async (id) => {
   try {
     const data = await getUserByIdApi(id)
@@ -59,6 +77,7 @@ export const getUserService = async (id) => {
   }
 }
 
+// ✅ Update user profile
 export const updateUserService = async (id, formData) => {
   try {
     const data = await updateUserApi(id, formData)

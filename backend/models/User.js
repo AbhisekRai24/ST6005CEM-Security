@@ -50,19 +50,23 @@ const UserSchema = new mongoose.Schema(
         },
 
         // ==========================================
-        // 🔐 TWO-FACTOR AUTHENTICATION FIELDS (NEW)
+        // 🔐 TWO-FACTOR AUTHENTICATION FIELDS
         // ==========================================
         twoFactorEnabled: {
             type: Boolean,
             default: false
         },
+        twoFactorTempSecret: {
+            type: String,
+            select: false // ✅ NEW: Temporary secret during setup
+        },
         twoFactorSecret: {
             type: String,
-            select: false // Don't include in queries by default
+            select: false // Permanent secret after verification
         },
         twoFactorBackupCodes: {
             type: [String],
-            select: false // Don't include in queries by default
+            select: false
         },
         twoFactorEnabledAt: {
             type: Date
@@ -199,6 +203,7 @@ UserSchema.methods.getDecryptedData = function () {
         delete user.password;
         delete user.passwordHistory;
         delete user.twoFactorSecret; // 🔐 Don't expose 2FA secret
+        delete user.twoFactorTempSecret; // 🔐 Don't expose temp secret
         delete user.twoFactorBackupCodes; // 🔐 Don't expose backup codes
 
         return user;
@@ -218,6 +223,7 @@ UserSchema.methods.getSafeData = function () {
     delete user.failedLoginAttempts;
     delete user.accountLockedUntil;
     delete user.twoFactorSecret; // 🔐 Don't expose 2FA secret
+    delete user.twoFactorTempSecret; // 🔐 Don't expose temp secret
     delete user.twoFactorBackupCodes; // 🔐 Don't expose backup codes
 
     return user;

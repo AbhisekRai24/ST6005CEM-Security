@@ -1,8 +1,8 @@
 // 🔐 2FA SETUP COMPONENT
 // Location: frontend/src/components/auth/TwoFASetup.jsx
 
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useRef } from 'react';
+import axiosInstance from '../../api/api';
 import { Shield, Copy, Check, Download, AlertCircle, X } from 'lucide-react';
 
 export default function TwoFASetup({ onClose, onSuccess }) {
@@ -16,9 +16,13 @@ export default function TwoFASetup({ onClose, onSuccess }) {
     const [copied, setCopied] = useState(false);
     const [downloadedBackupCodes, setDownloadedBackupCodes] = useState(false);
 
-    // Step 1: Get QR Code
+    // ✅ Prevent duplicate calls
+    const hasFetchedRef = useRef(false);
+
+    // Step 1: Get QR Code - ✅ FIXED: Now checks hasFetchedRef
     useEffect(() => {
-        if (step === 1) {
+        if (step === 1 && !hasFetchedRef.current) {
+            hasFetchedRef.current = true;
             fetchQRCode();
         }
     }, [step]);
@@ -27,16 +31,14 @@ export default function TwoFASetup({ onClose, onSuccess }) {
         setLoading(true);
         setError('');
         try {
-            const response = await axios.post(
-                `${import.meta.env.VITE_API_URL}/api/2fa/setup`,
-                {},
-                { withCredentials: true }
-            );
+            const response = await axiosInstance.post('/2fa/setup', {});
 
             setQrCode(response.data.data.qrCode);
             setManualKey(response.data.data.manualEntryKey);
         } catch (err) {
+            console.error('QR Code Error:', err.response?.data);
             setError(err.response?.data?.message || 'Failed to generate QR code');
+            hasFetchedRef.current = false; // ✅ Reset on error so they can retry
         } finally {
             setLoading(false);
         }
@@ -54,15 +56,17 @@ export default function TwoFASetup({ onClose, onSuccess }) {
         setError('');
 
         try {
-            const response = await axios.post(
-                `${import.meta.env.VITE_API_URL}/api/2fa/verify-enable`,
-                { token: verificationCode },
-                { withCredentials: true }
-            );
+            console.log('🔍 Sending verification request with token:', verificationCode);
 
+            const response = await axiosInstance.post('/2fa/verify-enable', {
+                token: verificationCode
+            });
+
+            console.log('✅ Verification successful:', response.data);
             setBackupCodes(response.data.data.backupCodes);
-            setStep(3); // Move to backup codes
+            setStep(3);
         } catch (err) {
+            console.error('❌ Verification failed:', err.response?.data);
             setError(err.response?.data?.message || 'Invalid verification code');
         } finally {
             setLoading(false);
@@ -115,14 +119,10 @@ export default function TwoFASetup({ onClose, onSuccess }) {
                         {[1, 2, 3].map((num) => (
                             <React.Fragment key={num}>
                                 <div className="flex items-center">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
-                                        step >= num ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                                    }`}>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${step >= num ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
                                         {num}
                                     </div>
-                                    <span className={`ml-2 text-sm font-medium ${
-                                        step >= num ? 'text-blue-600' : 'text-gray-400'
-                                    }`}>
+                                    <span className={`ml-2 text-sm font-medium ${step >= num ? 'text-blue-600' : 'text-gray-400'}`}>
                                         {num === 1 ? 'Scan' : num === 2 ? 'Verify' : 'Backup'}
                                     </span>
                                 </div>
