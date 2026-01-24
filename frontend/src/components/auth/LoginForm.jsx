@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -5,6 +6,7 @@ import { useLoginUser } from '../../hooks/useLoginUser';
 import { Link } from 'react-router-dom';
 import { Mail, Lock, LogIn, AlertCircle, ShieldAlert } from 'lucide-react';
 import SimpleCaptcha from '../../components/auth/SimpleCaptcha';
+import TwoFAVerifyModal from '../auth/twoFAVerifyModal'; // 🔐 NEW IMPORT
 
 export default function LoginForm() {
     const { mutate, error, isPending } = useLoginUser();
@@ -13,6 +15,12 @@ export default function LoginForm() {
     const [showCaptcha, setShowCaptcha] = useState(false);
     const [captchaVerified, setCaptchaVerified] = useState(false);
     const [attemptsRemaining, setAttemptsRemaining] = useState(null);
+
+    // 🔐 2FA State (NEW)
+    const [show2FAModal, setShow2FAModal] = useState(false);
+    const [twoFAUserId, setTwoFAUserId] = useState(null);
+    const [backupCodesAvailable, setBackupCodesAvailable] = useState(false);
+    const [loginCredentials, setLoginCredentials] = useState(null);
 
     const validationSchema = Yup.object({
         email: Yup.string().email("Invalid email").required("Please fill email"),
@@ -32,11 +40,24 @@ export default function LoginForm() {
                 return;
             }
 
+            // Store credentials for 2FA retry
+            setLoginCredentials(values);
+
             mutate(values, {
+                onSuccess: (data) => {
+                    // 🔐 CHECK IF 2FA IS REQUIRED
+                    if (data?.requires2FA) {
+                        setTwoFAUserId(data.userId);
+                        setBackupCodesAvailable(data.backupCodesAvailable || false);
+                        setShow2FAModal(true);
+                        return;
+                    }
+                    // Normal login success - redirect handled by useLoginUser hook
+                },
                 onError: (err) => {
                     // 🔒 CHECK FOR RATE LIMITING
                     if (err?.rateLimited || err?.message?.includes('Too many')) {
-                        return; // Already handled by error display
+                        return;
                     }
 
                     // 🔒 CHECK IF CAPTCHA SHOULD BE SHOWN
@@ -49,7 +70,6 @@ export default function LoginForm() {
                     if (err?.attemptsRemaining !== undefined) {
                         setAttemptsRemaining(err.attemptsRemaining);
                     } else if (err?.message?.includes('attempt')) {
-                        // Extract number from message like "2 attempts remaining"
                         const match = err.message.match(/(\d+)\s+attempt/);
                         if (match) {
                             setAttemptsRemaining(parseInt(match[1]));
@@ -60,11 +80,31 @@ export default function LoginForm() {
         }
     });
 
+    // 🔐 HANDLE 2FA VERIFICATION (NEW)
+    const handle2FAVerification = async (code, isBackupCode) => {
+        if (!loginCredentials || !twoFAUserId) return;
+
+        // Submit login with 2FA token
+        mutate({
+            ...loginCredentials,
+            twoFactorToken: code,
+            isBackupCode: isBackupCode
+        }, {
+            onSuccess: () => {
+                setShow2FAModal(false);
+                // Login success - redirect handled by useLoginUser hook
+            },
+            onError: (err) => {
+                // Error will be shown in the modal
+                throw err;
+            }
+        });
+    };
+
     // 🔒 CAPTCHA Handlers
     const handleCaptchaVerify = (verified) => {
         setCaptchaVerified(verified);
         if (verified) {
-            // Auto-submit after CAPTCHA verification
             setTimeout(() => {
                 formik.handleSubmit();
             }, 500);
@@ -88,7 +128,17 @@ export default function LoginForm() {
 
     return (
         <>
-            {/* 🔒 CAPTCHA OVERLAY (Renders outside form, on top of everything) */}
+            {/* 🔐 2FA VERIFICATION MODAL (NEW) */}
+            {show2FAModal && (
+                <TwoFAVerifyModal
+                    userId={twoFAUserId}
+                    onVerify={handle2FAVerification}
+                    onCancel={() => setShow2FAModal(false)}
+                    backupCodesAvailable={backupCodesAvailable}
+                />
+            )}
+
+            {/* 🔒 CAPTCHA OVERLAY */}
             {showCaptcha && !isAccountLocked && !isRateLimited && (
                 <SimpleCaptcha
                     onVerify={handleCaptchaVerify}
@@ -254,8 +304,8 @@ export default function LoginForm() {
                     </div>
                 )}
 
-                {/* 🔒 REGULAR ERROR (with attempt counter) */}
-                {error && !isAccountLocked && !isPasswordExpired && !isRateLimited && (
+                {/* 🔒 REGULAR ERROR */}
+                {error && !isAccountLocked && !isPasswordExpired && !isRateLimited && !error.requires2FA && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                         <div className="flex items-start gap-2">
                             <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
@@ -263,7 +313,6 @@ export default function LoginForm() {
                                 <p className="text-red-600 text-sm">
                                     {error.message || "Login failed. Please try again."}
                                 </p>
-                                {/* Show remaining attempts if message contains number */}
                                 {error.message?.includes('attempt') && (
                                     <p className="text-red-500 text-xs mt-1">
                                         ⚠️ Your account will be locked after too many failed attempts.

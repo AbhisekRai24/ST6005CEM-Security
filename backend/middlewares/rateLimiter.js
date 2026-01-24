@@ -1,4 +1,4 @@
-// 🔒 RATE LIMITING MIDDLEWARE (Step 2 - Brute Force Prevention)
+// 🔒 RATE LIMITING MIDDLEWARE (Updated with 2FA Support)
 // Location: backend/middlewares/rateLimiter.js
 
 const rateLimit = require('express-rate-limit');
@@ -132,6 +132,73 @@ exports.passwordResetLimiter = rateLimit({
     message: {
         success: false,
         message: "Too many password reset requests. Please try again later."
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+/**
+ * 🔐 STRICT RATE LIMITER FOR 2FA OPERATIONS (NEW)
+ * Used for 2FA setup, verification, and other sensitive operations
+ * More restrictive than regular routes to prevent abuse
+ */
+exports.createStrictRateLimiter = (options = {}) => {
+    return rateLimit({
+        windowMs: options.windowMs || 15 * 60 * 1000, // 15 minutes default
+        max: options.max || 10, // 10 attempts default
+        message: options.message || "Too many attempts. Please try again later.",
+        standardHeaders: true,
+        legacyHeaders: false,
+        skipSuccessfulRequests: options.skipSuccessfulRequests || false,
+        handler: (req, res) => {
+            console.warn(`🚨 2FA RATE LIMIT EXCEEDED: IP ${req.ip} on ${req.path}`);
+            
+            res.status(429).json({
+                success: false,
+                message: options.message || "Too many attempts. Please try again later.",
+                rateLimited: true,
+                retryAfter: Math.ceil((options.windowMs || 15 * 60 * 1000) / 60000) // in minutes
+            });
+        }
+    });
+};
+
+/**
+ * 🔐 2FA VERIFICATION RATE LIMITER (NEW)
+ * Specifically for 2FA token verification during login
+ * Very strict to prevent brute force attacks on 2FA codes
+ */
+exports.twoFAVerificationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Only 5 attempts per 15 minutes (2FA codes are 6 digits, very limited space)
+    message: {
+        success: false,
+        message: "Too many 2FA verification attempts. Please try again later."
+    },
+    handler: (req, res) => {
+        console.warn(`🚨 2FA VERIFICATION RATE LIMIT: IP ${req.ip}, User ${req.body.userId || 'unknown'}`);
+        
+        res.status(429).json({
+            success: false,
+            message: "Too many 2FA verification attempts. Please try again after 15 minutes.",
+            rateLimited: true,
+            retryAfter: 15
+        });
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+/**
+ * 🔐 2FA SETUP RATE LIMITER (NEW)
+ * Prevents abuse of QR code generation
+ */
+exports.twoFASetupLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // Max 10 setup attempts per hour
+    message: {
+        success: false,
+        message: "Too many 2FA setup attempts. Please try again later."
     },
     standardHeaders: true,
     legacyHeaders: false,

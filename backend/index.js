@@ -11,6 +11,8 @@ const helmet = require('helmet');
 
 const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoute");
+const twoFARoutes = require("./routes/2faRoutes");
+
 const adminCategoryRoutes = require("./routes/admin/categoryRouteAdmin");
 const adminProductRoutes = require("./routes/admin/productRouteAdmin");
 const adminUserRoutes = require("./routes/admin/userRouteAdmin");
@@ -205,6 +207,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/admin/banner", bannerRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use('/api/esewa', esewaRoutes);
+app.use("/api/2fa", twoFARoutes);
 app.use("/api/user/category", userCategoryRoutes);
 app.use("/api/user/product", userProductRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);

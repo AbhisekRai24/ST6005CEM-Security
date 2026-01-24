@@ -129,6 +129,7 @@ import ProductDetail from "../components/admin/product/ProductDetail";
 import EditProduct from "../components/admin/product/EditProduct";
 import ResetPassword from "../components/auth/ResetPassword";
 import RequestReset from "../components/auth/RequestReset";
+import SettingsPage from "../components/Settings/twoFASettings";
 
 import Unauthorized from "../pages/UnauthorizedPage";
 
@@ -157,6 +158,9 @@ function App() {
                         <Route path="home" element={<UserHomePage />} />
                         <Route path="myorders" element={<MyOrders />} />
                         <Route path="profile" element={<ProfilePage />} />
+                        <Route path="settings" element={<SettingsPage />} />
+
+
                         <Route path="notification" element={<Notifications />} />
                         <Route path="user/category/:categoryId" element={<CategoryProducts />} />
                     </Route>

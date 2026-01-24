@@ -1,5 +1,6 @@
 import React from "react"
 import UserProfile from "../components/User/UserProfileEdit"
+import TwoFASettings from "./Settings/twoFASettings"
 
 export default function ProfilePage() {
   return (
@@ -8,6 +9,7 @@ export default function ProfilePage() {
         Your Profile
       </h1>
       <UserProfile />
+      <TwoFASettings />
     </div>
   )
 }
