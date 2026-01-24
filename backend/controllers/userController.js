@@ -1,144 +1,246 @@
-// 🔐 TWO-FACTOR AUTHENTICATION CONTROLLER
-// Location: backend/controllers/twoFAController.js
-
 const User = require("../models/User");
-const speakeasy = require("speakeasy");
-const qrcode = require("qrcode");
 const bcrypt = require("bcrypt");
-const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const fs = require("fs");
+const path = require("path");
+const speakeasy = require("speakeasy");
+
+// 🔒 IMPORT SECURITY LOGGER
+const {
+    logFailedLogin,
+    logSuccessfulLogin,
+    logAccountLockout,
+    logPasswordChange,
+    logSuspiciousActivity
+} = require("../middlewares/securityLogger");
+
+// 🔒 JWT and Cookie Configuration
+const ACCESS_TOKEN_EXPIRY = '15m';
+
+// 🔒 Helper: Generate JWT
+const generateToken = (userId, role, email) => {
+    return jwt.sign(
+        { _id: userId, role, email },
+        process.env.SECRET,
+        { expiresIn: ACCESS_TOKEN_EXPIRY }
+    );
+};
+
+// 🔒 Helper: Set HTTP-only cookie
+const setTokenCookie = (res, token) => {
+    const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000,
+        path: '/'
+    };
+
+    res.cookie('token', token, cookieOptions);
+};
+
+// 🔒 Helper: Clear cookie (logout)
+const clearTokenCookie = (res) => {
+    res.cookie('token', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        expires: new Date(0)
+    });
+};
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
+
+// 🔒 CONSTANTS FOR SECURITY POLICIES
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCK_TIME = 15 * 60 * 1000;
+const PASSWORD_HISTORY_LIMIT = 5;
 
 // ==========================================
-// 🔐 SETUP 2FA (Generate QR Code)
+// SEND RESET LINK
 // ==========================================
-exports.setup2FA = async (req, res) => {
+exports.sendResetLink = async (req, res) => {
+    const { email } = req.body;
     try {
-        const userId = req.user._id; // From authenticateUser middleware
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: "User not found" });
 
-        const user = await User.findById(userId);
+        const token = jwt.sign({ id: user._id }, process.env.SECRET, {
+            expiresIn: "15m",
+        });
+
+        const resetUrl = `${process.env.CLIENT_URL}/reset-password/${token}`;
+
+        const mailOptions = {
+            from: `"Your App" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: "Reset your password",
+            html: `<p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
+             <p>This link expires in 15 minutes.</p>`,
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.status(200).json({ success: true, message: "Reset email sent" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+// ==========================================
+// RESET PASSWORD
+// ==========================================
+exports.resetPassword = async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    try {
+        const decoded = jwt.verify(token, process.env.SECRET);
+
+        const user = await User.findById(decoded.id).select('+passwordHistory');
         if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found"
-            });
+            return res.status(404).json({ success: false, message: "User not found" });
         }
 
-        // Check if 2FA is already enabled
-        if (user.twoFactorEnabled) {
-            return res.status(400).json({
-                success: false,
-                message: "2FA is already enabled for this account"
-            });
-        }
+        if (user.passwordHistory && user.passwordHistory.length > 0) {
+            const isReused = await Promise.all(
+                user.passwordHistory.map(oldPassword =>
+                    bcrypt.compare(password, oldPassword)
+                )
+            );
 
-        // Generate secret
-        const secret = speakeasy.generateSecret({
-            name: `RevModz (${user.email})`,
-            issuer: 'RevModz'
-        });
-
-        // Temporarily store secret (not yet enabled)
-        user.twoFactorSecret = secret.base32;
-        await user.save();
-
-        // Generate QR code
-        qrcode.toDataURL(secret.otpauth_url, (err, dataUrl) => {
-            if (err) {
-                console.error("QR code generation error:", err);
-                return res.status(500).json({
+            if (isReused.includes(true)) {
+                logPasswordChange(user.email, req.ip, false);
+                return res.status(400).json({
                     success: false,
-                    message: "Failed to generate QR code"
+                    message: "Cannot reuse previous passwords. Please choose a different password."
                 });
             }
-
-            res.json({
-                success: true,
-                message: "Scan this QR code with Google Authenticator or Authy",
-                data: {
-                    qrCode: dataUrl,
-                    secret: secret.base32, // Show once for manual entry
-                    manualEntryKey: secret.base32
-                }
-            });
-        });
-
-    } catch (err) {
-        console.error("Setup 2FA error:", err);
-        res.status(500).json({
-            success: false,
-            message: "Server error"
-        });
-    }
-};
-
-// ==========================================
-// 🔐 VERIFY & ENABLE 2FA
-// ==========================================
-exports.verifyAndEnable2FA = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        const { token } = req.body;
-
-        if (!token) {
-            return res.status(400).json({
-                success: false,
-                message: "2FA token is required"
-            });
         }
 
-        const user = await User.findById(userId).select('+twoFactorSecret');
-        if (!user || !user.twoFactorSecret) {
-            return res.status(400).json({
-                success: false,
-                message: "2FA setup not initiated. Please start setup first."
-            });
+        if (!user.passwordHistory) {
+            user.passwordHistory = [];
         }
+        user.passwordHistory.unshift(user.password);
+        user.passwordHistory = user.passwordHistory.slice(0, PASSWORD_HISTORY_LIMIT);
 
-        // Verify the token
-        const verified = speakeasy.totp.verify({
-            secret: user.twoFactorSecret,
-            encoding: 'base32',
-            token: token,
-            window: 2 // Allow 2 time steps (60 seconds) tolerance
-        });
+        // ✅ Pass plain password - will be hashed by pre-save hook
+        user.password = password;
+        user.passwordChangedAt = Date.now();
 
-        if (!verified) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid 2FA code. Please try again."
-            });
-        }
-
-        // Generate backup codes (10 codes)
-        const backupCodes = [];
-        for (let i = 0; i < 10; i++) {
-            const code = crypto.randomBytes(4).toString('hex').toUpperCase();
-            backupCodes.push(code);
-        }
-
-        // Hash backup codes before storing
-        const hashedBackupCodes = await Promise.all(
-            backupCodes.map(code => bcrypt.hash(code, 10))
-        );
-
-        // Enable 2FA
-        user.twoFactorEnabled = true;
-        user.twoFactorEnabledAt = Date.now();
-        user.twoFactorBackupCodes = hashedBackupCodes;
         await user.save();
 
-        console.log(`✅ 2FA enabled for user: ${user.email}`);
+        const newToken = generateToken(user._id, user.role, user.email);
+        setTokenCookie(res, newToken);
 
-        res.json({
+        logPasswordChange(user.email, req.ip, true);
+
+        res.status(200).json({
             success: true,
-            message: "2FA enabled successfully! Save your backup codes securely.",
-            data: {
-                backupCodes: backupCodes // Return unhashed codes ONCE
-            }
+            message: "Password updated successfully. Please use your new credentials."
+        });
+    } catch (err) {
+        console.error("Reset password error:", err);
+        res.status(400).json({ success: false, message: "Invalid or expired token" });
+    }
+};
+
+// ==========================================
+// REGISTER USER (WITH ENCRYPTION)
+// ==========================================
+exports.registerUser = async (req, res) => {
+    const { username, email, firstName, lastName, password, phoneNumber, address } = req.body;
+    const profileImage = req.file ? req.file.path : null;
+
+    if (!username || !email || !password) {
+        return res.status(400).json({
+            success: false,
+            message: "Missing required fields"
+        });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid email format"
+        });
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+        return res.status(400).json({
+            success: false,
+            message: "Password must be at least 8 characters and contain uppercase, lowercase, number, and special character"
+        });
+    }
+
+    try {
+        const existingUser = await User.findOne({
+            $or: [
+                { username: username },
+                { email: email }
+            ]
+        });
+
+        if (existingUser) {
+            logSuspiciousActivity(
+                'Duplicate Registration Attempt',
+                { email, username },
+                req.ip
+            );
+
+            return res.status(400).json({
+                success: false,
+                message: "Username or email already exists"
+            });
+        }
+
+        // ✅ FIXED: Pass plain password - will be hashed by pre-save hook
+        // 🔐 Create user with encrypted fields
+        const newUser = new User({
+            username,
+            email,
+            firstName,
+            lastName,
+            password, // ✅ Plain password - pre-save hook will hash it
+            profileImage,
+            phoneNumber, // 🔐 Will be auto-encrypted by pre-save hook
+            address // 🔐 Will be auto-encrypted by pre-save hook
+        });
+
+        await newUser.save(); // 🔐 Encryption + hashing happens automatically
+
+        logSuccessfulLogin(email, req.ip);
+
+        // 🔐 Return safe data (no sensitive info)
+        const safeUserData = newUser.getSafeData();
+
+        return res.status(201).json({
+            success: true,
+            message: "User registered successfully",
+            data: safeUserData
         });
 
     } catch (err) {
-        console.error("Verify 2FA error:", err);
-        res.status(500).json({
+        console.error("Registration Error:", err);
+
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        }
+
+        return res.status(500).json({
             success: false,
             message: "Server error"
         });
@@ -146,118 +248,204 @@ exports.verifyAndEnable2FA = async (req, res) => {
 };
 
 // ==========================================
-// 🔐 VERIFY 2FA TOKEN (During Login)
+// LOGIN USER
 // ==========================================
-exports.verify2FAToken = async (req, res) => {
+exports.loginUser = async (req, res) => {
+    const { email, password, twoFactorToken, isBackupCode } = req.body;
+
+    console.log('🔐 LOGIN ATTEMPT:', email);
+
+    if (!email || !password) {
+        return res.status(400).json({
+            success: false,
+            message: "Email and password are required"
+        });
+    }
+
     try {
-        const { userId, token, isBackupCode } = req.body;
+        // Get user with 2FA secret if enabled
+        const user = await User.findOne({ email }).select('+twoFactorSecret +twoFactorBackupCodes');
 
-        if (!userId || !token) {
-            return res.status(400).json({
+        if (!user) {
+            logFailedLogin(email, req.ip, 'User not found');
+            return res.status(403).json({
                 success: false,
-                message: "User ID and token are required"
+                message: "Invalid credentials"
             });
         }
 
-        const user = await User.findById(userId).select('+twoFactorSecret +twoFactorBackupCodes');
+        // Check account lockout
+        if (user.isAccountLocked()) {
+            const lockTimeRemaining = Math.ceil((user.accountLockedUntil - Date.now()) / 60000);
 
-        if (!user || !user.twoFactorEnabled) {
-            return res.status(400).json({
+            logSuspiciousActivity(
+                'Login Attempt on Locked Account',
+                { email, lockTimeRemaining },
+                req.ip
+            );
+
+            return res.status(403).json({
                 success: false,
-                message: "2FA not enabled for this account"
+                message: `Account locked due to multiple failed login attempts. Try again in ${lockTimeRemaining} minutes.`,
+                accountLocked: true,
+                lockTimeRemaining
             });
         }
 
-        let verified = false;
+        // Check password
+        const passwordCheck = await bcrypt.compare(password, user.password);
 
-        // Check if it's a backup code
-        if (isBackupCode) {
-            if (!user.twoFactorBackupCodes || user.twoFactorBackupCodes.length === 0) {
-                return res.status(400).json({
+        if (!passwordCheck) {
+            user.failedLoginAttempts += 1;
+
+            if (user.failedLoginAttempts >= MAX_LOGIN_ATTEMPTS) {
+                user.accountLockedUntil = Date.now() + LOCK_TIME;
+                await user.save();
+
+                logAccountLockout(email, req.ip, user.failedLoginAttempts);
+
+                return res.status(403).json({
                     success: false,
-                    message: "No backup codes available"
+                    message: `Account locked due to ${MAX_LOGIN_ATTEMPTS} failed login attempts. Try again in 15 minutes.`,
+                    accountLocked: true,
+                    requiresCaptcha: true
                 });
             }
 
-            // Check each hashed backup code
-            for (let i = 0; i < user.twoFactorBackupCodes.length; i++) {
-                const isMatch = await bcrypt.compare(token, user.twoFactorBackupCodes[i]);
-                if (isMatch) {
-                    // Remove used backup code
-                    user.twoFactorBackupCodes.splice(i, 1);
-                    await user.save();
-                    verified = true;
-                    console.log(`✅ Backup code used for user: ${user.email}`);
-                    break;
+            await user.save();
+
+            logFailedLogin(email, req.ip, `Wrong password (${user.failedLoginAttempts}/${MAX_LOGIN_ATTEMPTS})`);
+
+            return res.status(403).json({
+                success: false,
+                message: `Invalid credentials. ${MAX_LOGIN_ATTEMPTS - user.failedLoginAttempts} attempts remaining.`,
+                attemptsRemaining: MAX_LOGIN_ATTEMPTS - user.failedLoginAttempts,
+                requiresCaptcha: user.failedLoginAttempts >= 3
+            });
+        }
+
+        // ==========================================
+        // 🔐 2FA CHECK (NEW LOGIC)
+        // ==========================================
+        
+        // If 2FA is enabled and no token provided, ask for 2FA
+        if (user.twoFactorEnabled && !twoFactorToken) {
+            console.log('🔐 2FA required for user:', email);
+            
+            return res.status(200).json({
+                success: false,
+                requires2FA: true,
+                message: "2FA verification required",
+                userId: user._id, // Send userId for next request
+                backupCodesAvailable: (user.twoFactorBackupCodes?.length || 0) > 0
+            });
+        }
+
+        // If 2FA is enabled and token provided, verify it
+        if (user.twoFactorEnabled && twoFactorToken) {
+            let verified = false;
+
+            // Check if it's a backup code
+            if (isBackupCode) {
+                if (!user.twoFactorBackupCodes || user.twoFactorBackupCodes.length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "No backup codes available"
+                    });
+                }
+
+                // Verify backup code
+                for (let i = 0; i < user.twoFactorBackupCodes.length; i++) {
+                    const isMatch = await bcrypt.compare(twoFactorToken, user.twoFactorBackupCodes[i]);
+                    if (isMatch) {
+                        // Remove used backup code
+                        user.twoFactorBackupCodes.splice(i, 1);
+                        verified = true;
+                        console.log(`✅ Backup code used for user: ${email}`);
+                        break;
+                    }
+                }
+
+                if (!verified) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid backup code",
+                        requires2FA: true
+                    });
+                }
+
+            } else {
+                // Verify TOTP token
+                verified = speakeasy.totp.verify({
+                    secret: user.twoFactorSecret,
+                    encoding: 'base32',
+                    token: twoFactorToken,
+                    window: 2 // 60 seconds tolerance
+                });
+
+                if (!verified) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid 2FA code",
+                        requires2FA: true
+                    });
                 }
             }
 
-            if (!verified) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid backup code"
-                });
-            }
-
-        } else {
-            // Verify TOTP token
-            verified = speakeasy.totp.verify({
-                secret: user.twoFactorSecret,
-                encoding: 'base32',
-                token: token,
-                window: 2 // 60 seconds tolerance
-            });
-
-            if (!verified) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid 2FA code"
-                });
-            }
+            console.log(`✅ 2FA verified for user: ${email}`);
         }
 
-        // Reset failed login attempts on successful 2FA
+        // ==========================================
+        // 🔐 2FA VERIFICATION PASSED OR NOT ENABLED
+        // ==========================================
+
+        // Reset failed attempts
         if (user.failedLoginAttempts > 0) {
             user.failedLoginAttempts = 0;
             user.accountLockedUntil = undefined;
             await user.save();
         }
 
-        res.json({
+        // Generate JWT and set cookie
+        const token = generateToken(user._id, user.role, user.email);
+        setTokenCookie(res, token);
+
+        const { password: _, passwordHistory: __, twoFactorSecret: ___, twoFactorBackupCodes: ____, ...userWithoutSensitive } = user._doc;
+
+        logSuccessfulLogin(email, req.ip);
+
+        return res.status(200).json({
             success: true,
-            message: "2FA verification successful",
-            data: {
-                userId: user._id,
-                email: user.email,
-                role: user.role
-            }
+            message: "Login successful",
+            data: userWithoutSensitive
         });
 
     } catch (err) {
-        console.error("Verify 2FA token error:", err);
-        res.status(500).json({
+        console.error("❌ Login error:", err);
+        return res.status(500).json({
             success: false,
             message: "Server error"
         });
     }
 };
+// ==========================================
+// LOGOUT USER
+// ==========================================
+exports.logoutUser = (req, res) => {
+    clearTokenCookie(res);
+
+    res.json({
+        success: true,
+        message: 'Logout successful'
+    });
+};
 
 // ==========================================
-// 🔐 DISABLE 2FA
+// GET USER BY ID (WITH DECRYPTION)
 // ==========================================
-exports.disable2FA = async (req, res) => {
+exports.getUser = async (req, res) => {
     try {
-        const userId = req.user._id;
-        const { password, token } = req.body;
-
-        if (!password || !token) {
-            return res.status(400).json({
-                success: false,
-                message: "Password and current 2FA token are required"
-            });
-        }
-
-        const user = await User.findById(userId).select('+twoFactorSecret');
+        const user = await User.findById(req.params.id).select("-password -passwordHistory");
         
         if (!user) {
             return res.status(404).json({
@@ -266,54 +454,29 @@ exports.disable2FA = async (req, res) => {
             });
         }
 
-        if (!user.twoFactorEnabled) {
-            return res.status(400).json({
-                success: false,
-                message: "2FA is not enabled"
-            });
+        // 🔐 Check if requester can see sensitive data
+        const isOwnProfile = req.user && req.user._id.toString() === user._id.toString();
+        const isAdmin = req.user && req.user.role === 'admin';
+
+        let userData;
+
+        if (isOwnProfile || isAdmin) {
+            // 🔐 Return decrypted data for own profile or admin
+            userData = user.getDecryptedData();
+            console.log(`✅ Returning decrypted data to ${isAdmin ? 'admin' : 'user'}`);
+        } else {
+            // 🔐 Return safe data (no sensitive info) for other users
+            userData = user.getSafeData();
+            console.log(`⚠️ Returning safe data (no sensitive info)`);
         }
 
-        // Verify password
-        const passwordMatch = await bcrypt.compare(password, user.password);
-        if (!passwordMatch) {
-            return res.status(403).json({
-                success: false,
-                message: "Incorrect password"
-            });
-        }
-
-        // Verify 2FA token
-        const verified = speakeasy.totp.verify({
-            secret: user.twoFactorSecret,
-            encoding: 'base32',
-            token: token,
-            window: 2
-        });
-
-        if (!verified) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid 2FA code"
-            });
-        }
-
-        // Disable 2FA
-        user.twoFactorEnabled = false;
-        user.twoFactorSecret = undefined;
-        user.twoFactorBackupCodes = undefined;
-        user.twoFactorEnabledAt = undefined;
-        await user.save();
-
-        console.log(`⚠️ 2FA disabled for user: ${user.email}`);
-
-        res.json({
+        return res.status(200).json({
             success: true,
-            message: "2FA has been disabled"
+            data: userData
         });
-
     } catch (err) {
-        console.error("Disable 2FA error:", err);
-        res.status(500).json({
+        console.error("Get user error:", err);
+        return res.status(500).json({
             success: false,
             message: "Server error"
         });
@@ -321,14 +484,88 @@ exports.disable2FA = async (req, res) => {
 };
 
 // ==========================================
-// 🔐 GET 2FA STATUS
+// UPDATE USER (WITH ENCRYPTION)
 // ==========================================
-exports.get2FAStatus = async (req, res) => {
+exports.updateUser = async (req, res) => {
     try {
-        const userId = req.user._id;
+        const updateData = { ...req.body };
 
-        const user = await User.findById(userId).select('+twoFactorBackupCodes');
-        
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        // Handle profile image update
+        if (req.file) {
+            if (user.profileImage) {
+                const oldImagePath = path.join(__dirname, "..", user.profileImage);
+                fs.unlink(oldImagePath, (err) => {
+                    if (err) {
+                        console.warn("Failed to delete old profile image:", err.message);
+                    }
+                });
+            }
+            updateData.profileImage = req.file.path;
+        }
+
+        // 🔐 Update encrypted fields (if provided)
+        if (updateData.phoneNumber) {
+            user.phoneNumber = updateData.phoneNumber;
+        }
+
+        if (updateData.address) {
+            user.address = {
+                street: updateData.address.street || user.address?.street,
+                city: updateData.address.city || user.address?.city,
+                state: updateData.address.state || user.address?.state,
+                postalCode: updateData.address.postalCode || user.address?.postalCode,
+                country: updateData.address.country || user.address?.country
+            };
+        }
+
+        // Update other non-encrypted fields
+        if (updateData.firstName) user.firstName = updateData.firstName;
+        if (updateData.lastName) user.lastName = updateData.lastName;
+        if (updateData.profileImage) user.profileImage = updateData.profileImage;
+
+        await user.save(); // 🔐 Encryption happens automatically
+
+        // 🔐 Return decrypted data
+        const decryptedUser = user.getDecryptedData();
+
+        return res.status(200).json({
+            success: true,
+            message: "User updated successfully",
+            data: decryptedUser,
+        });
+    } catch (err) {
+        console.error("Update user error:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+        });
+    }
+};
+
+// ==========================================
+// CHANGE PASSWORD
+// ==========================================
+exports.changePassword = async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.params.id;
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+            success: false,
+            message: "Current and new password are required"
+        });
+    }
+
+    try {
+        const user = await User.findById(userId).select('+passwordHistory');
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -336,18 +573,65 @@ exports.get2FAStatus = async (req, res) => {
             });
         }
 
-        res.json({
-            success: true,
-            data: {
-                twoFactorEnabled: user.twoFactorEnabled || false,
-                twoFactorEnabledAt: user.twoFactorEnabledAt || null,
-                backupCodesRemaining: user.twoFactorBackupCodes?.length || 0
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            logPasswordChange(user.email, req.ip, false);
+
+            return res.status(400).json({
+                success: false,
+                message: "Current password is incorrect"
+            });
+        }
+
+        if (user.passwordHistory && user.passwordHistory.length > 0) {
+            const isReused = await Promise.all(
+                user.passwordHistory.map(oldPassword =>
+                    bcrypt.compare(newPassword, oldPassword)
+                )
+            );
+
+            if (isReused.includes(true)) {
+                logPasswordChange(user.email, req.ip, false);
+
+                return res.status(400).json({
+                    success: false,
+                    message: `Cannot reuse any of your last ${PASSWORD_HISTORY_LIMIT} passwords`
+                });
             }
+        }
+
+        if (!user.passwordHistory) {
+            user.passwordHistory = [];
+        }
+        user.passwordHistory.unshift(user.password);
+        user.passwordHistory = user.passwordHistory.slice(0, PASSWORD_HISTORY_LIMIT);
+
+        user.password = newPassword;
+        user.passwordChangedAt = Date.now();
+
+        await user.save();
+
+        const newToken = generateToken(user._id, user.role, user.email);
+        setTokenCookie(res, newToken);
+
+        logPasswordChange(user.email, req.ip, true);
+
+        return res.status(200).json({
+            success: true,
+            message: "Password changed successfully. All other sessions have been logged out."
         });
 
     } catch (err) {
-        console.error("Get 2FA status error:", err);
-        res.status(500).json({
+        console.error("Change password error:", err);
+
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        }
+
+        return res.status(500).json({
             success: false,
             message: "Server error"
         });
@@ -355,80 +639,29 @@ exports.get2FAStatus = async (req, res) => {
 };
 
 // ==========================================
-// 🔐 REGENERATE BACKUP CODES
+// GET CURRENT USER PROFILE (DECRYPTED)
 // ==========================================
-exports.regenerateBackupCodes = async (req, res) => {
+exports.getCurrentUserProfile = async (req, res) => {
     try {
-        const userId = req.user._id;
-        const { password, token } = req.body;
+        const user = await User.findById(req.user._id).select("-password -passwordHistory");
 
-        if (!password || !token) {
-            return res.status(400).json({
+        if (!user) {
+            return res.status(404).json({
                 success: false,
-                message: "Password and 2FA token are required"
+                message: "User not found"
             });
         }
 
-        const user = await User.findById(userId).select('+twoFactorSecret');
-        
-        if (!user || !user.twoFactorEnabled) {
-            return res.status(400).json({
-                success: false,
-                message: "2FA not enabled"
-            });
-        }
+        // 🔐 Return decrypted data
+        const decryptedUser = user.getDecryptedData();
 
-        // Verify password
-        const passwordMatch = await bcrypt.compare(password, user.password);
-        if (!passwordMatch) {
-            return res.status(403).json({
-                success: false,
-                message: "Incorrect password"
-            });
-        }
-
-        // Verify 2FA token
-        const verified = speakeasy.totp.verify({
-            secret: user.twoFactorSecret,
-            encoding: 'base32',
-            token: token,
-            window: 2
-        });
-
-        if (!verified) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid 2FA code"
-            });
-        }
-
-        // Generate new backup codes
-        const backupCodes = [];
-        for (let i = 0; i < 10; i++) {
-            const code = crypto.randomBytes(4).toString('hex').toUpperCase();
-            backupCodes.push(code);
-        }
-
-        const hashedBackupCodes = await Promise.all(
-            backupCodes.map(code => bcrypt.hash(code, 10))
-        );
-
-        user.twoFactorBackupCodes = hashedBackupCodes;
-        await user.save();
-
-        console.log(`🔄 Backup codes regenerated for user: ${user.email}`);
-
-        res.json({
+        return res.status(200).json({
             success: true,
-            message: "New backup codes generated",
-            data: {
-                backupCodes: backupCodes
-            }
+            data: decryptedUser
         });
-
     } catch (err) {
-        console.error("Regenerate backup codes error:", err);
-        res.status(500).json({
+        console.error("Get current user error:", err);
+        return res.status(500).json({
             success: false,
             message: "Server error"
         });
