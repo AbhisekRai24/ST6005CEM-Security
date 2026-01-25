@@ -1,22 +1,21 @@
-
 import React, { useState } from 'react';
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { useLoginUser } from '../../hooks/useLoginUser';
 import { Link } from 'react-router-dom';
 import { Mail, Lock, LogIn, AlertCircle, ShieldAlert } from 'lucide-react';
-import SimpleCaptcha from '../../components/auth/SimpleCaptcha';
-import TwoFAVerifyModal from '../auth/twoFAVerifyModal'; // 🔐 NEW IMPORT
+import TurnstileWidget from './TurnstileWidget';
+import TwoFAVerifyModal from '../auth/twoFAVerifyModal';
 
 export default function LoginForm() {
     const { mutate, error, isPending } = useLoginUser();
 
-    // 🔒 CAPTCHA State
+    // 🔒 CAPTCHA State (Cloudflare Turnstile)
     const [showCaptcha, setShowCaptcha] = useState(false);
-    const [captchaVerified, setCaptchaVerified] = useState(false);
+    const [captchaToken, setCaptchaToken] = useState(null);
     const [attemptsRemaining, setAttemptsRemaining] = useState(null);
 
-    // 🔐 2FA State (NEW)
+    // 🔐 2FA State
     const [show2FAModal, setShow2FAModal] = useState(false);
     const [twoFAUserId, setTwoFAUserId] = useState(null);
     const [backupCodesAvailable, setBackupCodesAvailable] = useState(false);
@@ -35,15 +34,19 @@ export default function LoginForm() {
         validationSchema,
         onSubmit: (values) => {
             // 🔒 CHECK CAPTCHA if required
-            if (showCaptcha && !captchaVerified) {
-                alert("Please complete the CAPTCHA verification");
-                return;
+            if (showCaptcha && !captchaToken) {
+                return; // Don't submit without CAPTCHA token
             }
 
             // Store credentials for 2FA retry
             setLoginCredentials(values);
 
-            mutate(values, {
+            const payload = {
+                ...values,
+                ...(showCaptcha && captchaToken ? { captchaToken, requiresCaptcha: true } : {})
+            };
+
+            mutate(payload, {
                 onSuccess: (data) => {
                     // 🔐 CHECK IF 2FA IS REQUIRED
                     if (data?.requires2FA) {
@@ -53,26 +56,35 @@ export default function LoginForm() {
                         return;
                     }
                     // Normal login success - redirect handled by useLoginUser hook
+                    // Reset captcha on success
+                    setShowCaptcha(false);
+                    setCaptchaToken(null);
                 },
                 onError: (err) => {
+                    console.log('Login Error:', err);
+
+                    // Reset captcha token on error
+                    setCaptchaToken(null);
+
                     // 🔒 CHECK FOR RATE LIMITING
                     if (err?.rateLimited || err?.message?.includes('Too many')) {
                         return;
                     }
 
                     // 🔒 CHECK IF CAPTCHA SHOULD BE SHOWN
-                    if (err?.requiresCaptcha || err?.message?.includes('3 attempt') || err?.message?.includes('2 attempt')) {
+                    if (err?.requiresCaptcha) {
+                        console.log('🔒 CAPTCHA required by backend');
                         setShowCaptcha(true);
-                        setCaptchaVerified(false);
                     }
 
                     // 🔒 SHOW ATTEMPTS REMAINING
                     if (err?.attemptsRemaining !== undefined) {
                         setAttemptsRemaining(err.attemptsRemaining);
-                    } else if (err?.message?.includes('attempt')) {
-                        const match = err.message.match(/(\d+)\s+attempt/);
-                        if (match) {
-                            setAttemptsRemaining(parseInt(match[1]));
+
+                        // Show CAPTCHA when 2 or fewer attempts remain
+                        if (err.attemptsRemaining <= 2) {
+                            console.log('🔒 CAPTCHA triggered - attempts remaining:', err.attemptsRemaining);
+                            setShowCaptcha(true);
                         }
                     }
                 }
@@ -80,11 +92,10 @@ export default function LoginForm() {
         }
     });
 
-    // 🔐 HANDLE 2FA VERIFICATION (NEW)
+    // 🔐 HANDLE 2FA VERIFICATION
     const handle2FAVerification = async (code, isBackupCode) => {
         if (!loginCredentials || !twoFAUserId) return;
 
-        // Submit login with 2FA token
         mutate({
             ...loginCredentials,
             twoFactorToken: code,
@@ -92,27 +103,27 @@ export default function LoginForm() {
         }, {
             onSuccess: () => {
                 setShow2FAModal(false);
-                // Login success - redirect handled by useLoginUser hook
             },
             onError: (err) => {
-                // Error will be shown in the modal
                 throw err;
             }
         });
     };
 
-    // 🔒 CAPTCHA Handlers
-    const handleCaptchaVerify = (verified) => {
-        setCaptchaVerified(verified);
-        if (verified) {
-            setTimeout(() => {
-                formik.handleSubmit();
-            }, 500);
-        }
+    // 🔒 Cloudflare Turnstile Handlers
+    const handleCaptchaVerify = (token) => {
+        console.log('✅ CAPTCHA verified, token received');
+        setCaptchaToken(token);
     };
 
-    const handleCaptchaFail = () => {
-        setCaptchaVerified(false);
+    const handleCaptchaError = () => {
+        console.log('❌ CAPTCHA error');
+        setCaptchaToken(null);
+    };
+
+    const handleCaptchaExpire = () => {
+        console.log('⏰ CAPTCHA expired');
+        setCaptchaToken(null);
     };
 
     // Check for various error states
@@ -128,25 +139,13 @@ export default function LoginForm() {
 
     return (
         <>
-            {/* 🔐 2FA VERIFICATION MODAL (NEW) */}
+            {/* 🔐 2FA VERIFICATION MODAL */}
             {show2FAModal && (
                 <TwoFAVerifyModal
                     userId={twoFAUserId}
                     onVerify={handle2FAVerification}
                     onCancel={() => setShow2FAModal(false)}
                     backupCodesAvailable={backupCodesAvailable}
-                />
-            )}
-
-            {/* 🔒 CAPTCHA OVERLAY */}
-            {showCaptcha && !isAccountLocked && !isRateLimited && (
-                <SimpleCaptcha
-                    onVerify={handleCaptchaVerify}
-                    onFail={handleCaptchaFail}
-                    onClose={() => {
-                        setShowCaptcha(false);
-                        setCaptchaVerified(false);
-                    }}
                 />
             )}
 
@@ -222,6 +221,26 @@ export default function LoginForm() {
                         Forgot password?
                     </Link>
                 </div>
+
+                {/* 🔒 CLOUDFLARE TURNSTILE CAPTCHA - Only show when triggered */}
+                {showCaptcha && !isAccountLocked && !isRateLimited && (
+                    <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                        <p className="text-sm text-gray-700 mb-3 font-medium">
+                            ⚠️ Please verify you're human to continue
+                        </p>
+                        <TurnstileWidget
+                            key="turnstile-widget" // ✅ Add unique key
+                            onVerify={handleCaptchaVerify}
+                            onError={handleCaptchaError}
+                            onExpire={handleCaptchaExpire}
+                        />
+                        {!captchaToken && (
+                            <p className="text-xs text-red-600 mt-2">
+                                Complete the verification above to login
+                            </p>
+                        )}
+                    </div>
+                )}
 
                 {/* 🔒 RATE LIMIT WARNING */}
                 {isRateLimited && (
@@ -313,11 +332,6 @@ export default function LoginForm() {
                                 <p className="text-red-600 text-sm">
                                     {error.message || "Login failed. Please try again."}
                                 </p>
-                                {error.message?.includes('attempt') && (
-                                    <p className="text-red-500 text-xs mt-1">
-                                        ⚠️ Your account will be locked after too many failed attempts.
-                                    </p>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -326,7 +340,7 @@ export default function LoginForm() {
                 {/* Submit Button */}
                 <button
                     type="submit"
-                    disabled={isPending || isAccountLocked || isRateLimited || (showCaptcha && !captchaVerified)}
+                    disabled={isPending || isAccountLocked || isRateLimited || (showCaptcha && !captchaToken)}
                     className="w-full py-3 bg-[#0B2146] text-white font-semibold rounded-lg hover:bg-blue-500 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                     {isPending ? (

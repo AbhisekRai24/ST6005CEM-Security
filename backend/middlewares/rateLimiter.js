@@ -1,4 +1,4 @@
-// 🔒 RATE LIMITING MIDDLEWARE (Updated with 2FA Support)
+// 🔒 RATE LIMITING MIDDLEWARE (Updated with 2FA Support & CAPTCHA Integration)
 // Location: backend/middlewares/rateLimiter.js
 
 const rateLimit = require('express-rate-limit');
@@ -22,10 +22,11 @@ exports.globalLimiter = rateLimit({
 /**
  * 🔒 LOGIN RATE LIMITER (Aggressive - Brute Force Protection)
  * Limits login attempts per IP address
+ * ✅ UPDATED: Increased limit to allow for CAPTCHA verification attempts
  */
 exports.loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // Max 10 login attempts per 15 minutes per IP
+    max: 15, // ✅ Increased from 10 to 15 to allow CAPTCHA retries
     skipSuccessfulRequests: true, // Don't count successful logins
     message: {
         success: false,
@@ -50,7 +51,7 @@ exports.loginLimiter = rateLimit({
 /**
  * 🔒 STRICT LOGIN LIMITER (Per Email - Account Protection)
  * Limits login attempts per specific email address
- * Use this in addition to IP-based limiting
+ * ✅ UPDATED: Allows more attempts and integrates with CAPTCHA system
  */
 exports.createAccountLoginLimiter = () => {
     const loginAttempts = new Map(); // Store: email -> { count, resetTime }
@@ -63,7 +64,7 @@ exports.createAccountLoginLimiter = () => {
         }
 
         const now = Date.now();
-        const maxAttempts = 5;
+        const maxAttempts = 12; // ✅ Increased from 5 to 12 to allow CAPTCHA attempts
         const windowMs = 15 * 60 * 1000; // 15 minutes
 
         // Get or initialize attempt record
@@ -87,7 +88,8 @@ exports.createAccountLoginLimiter = () => {
                 success: false,
                 message: `Too many login attempts for this account. Try again in ${minutesRemaining} minutes.`,
                 rateLimited: true,
-                requiresCaptcha: true // Signal frontend to show CAPTCHA
+                retryAfter: minutesRemaining,
+                requiresCaptcha: true
             });
         }
 
@@ -152,7 +154,7 @@ exports.createStrictRateLimiter = (options = {}) => {
         skipSuccessfulRequests: options.skipSuccessfulRequests || false,
         handler: (req, res) => {
             console.warn(`🚨 2FA RATE LIMIT EXCEEDED: IP ${req.ip} on ${req.path}`);
-            
+
             res.status(429).json({
                 success: false,
                 message: options.message || "Too many attempts. Please try again later.",
@@ -177,7 +179,7 @@ exports.twoFAVerificationLimiter = rateLimit({
     },
     handler: (req, res) => {
         console.warn(`🚨 2FA VERIFICATION RATE LIMIT: IP ${req.ip}, User ${req.body.userId || 'unknown'}`);
-        
+
         res.status(429).json({
             success: false,
             message: "Too many 2FA verification attempts. Please try again after 15 minutes.",

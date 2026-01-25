@@ -10,9 +10,10 @@ const xss = require('xss-clean');
 const helmet = require('helmet');
 
 const connectDB = require("./config/db");
+const { csrfProtection, attachCsrfToken } = require("./middlewares/csrf"); // 🔒 NEW
+
 const userRoutes = require("./routes/userRoute");
 const twoFARoutes = require("./routes/2faRoutes");
-
 const adminCategoryRoutes = require("./routes/admin/categoryRouteAdmin");
 const adminProductRoutes = require("./routes/admin/productRouteAdmin");
 const adminUserRoutes = require("./routes/admin/userRouteAdmin");
@@ -23,7 +24,6 @@ const userCategoryRoutes = require("./routes/userCategoryRoute");
 const userProductRoutes = require("./routes/userProductRoute");
 const adminDashboardRoutes = require("./routes/admin/adminDashboardRoutes");
 const esewaRoutes = require("./routes/esweaRoutes");
-
 
 const app = express();
 const server = http.createServer(app);
@@ -57,46 +57,38 @@ io.on("connection", (socket) => {
 // 1. 🛡️ HARDENED CORS CONFIGURATION
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests from your frontend or no origin (mobile apps, Postman)
     const allowedOrigins = [
       process.env.CLIENT_URL || 'http://localhost:5173',
-      'http://localhost:5173', // Development frontend
+      'http://localhost:5173',
     ];
 
-    // Allow requests with no origin (mobile apps, Postman, server-to-server)
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true, // Allow cookies
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Allowed HTTP methods
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'], // Allowed headers
-  exposedHeaders: ['set-cookie'], // Headers that client can access
-  maxAge: 86400, // Cache preflight requests for 24 hours
-  optionsSuccessStatus: 200 // For legacy browsers
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-CSRF-Token'], // 🔒 Added CSRF header
+  exposedHeaders: ['set-cookie'],
+  maxAge: 86400,
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
-
-// Handle preflight requests for all routes
 app.options('*', cors(corsOptions));
 
-// 2. Body Parsers
-// 2. 🛡️ REQUEST SIZE LIMITING (DoS Protection)
-// Limit JSON payloads to 10kb
+// 2. 🛡️ REQUEST SIZE LIMITING
 app.use(express.json({
   limit: '10kb',
   verify: (req, res, buf, encoding) => {
-    // Optional: Log large payload attempts
-    if (buf.length > 10240) { // 10kb in bytes
+    if (buf.length > 10240) {
       console.warn(`⚠️ Large payload rejected: ${buf.length} bytes from ${req.ip}`);
     }
   }
 }));
 
-// Limit URL-encoded data to 10kb
 app.use(express.urlencoded({
   extended: true,
   limit: '10kb',
@@ -107,7 +99,7 @@ app.use(express.urlencoded({
   }
 }));
 
-
+// 3. 🛡️ SECURITY HEADERS
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -119,44 +111,37 @@ app.use(
         connectSrc: ["'self'", "http://localhost:5173"],
       },
     },
-    frameguard: { action: "deny" }, // Anti-clickjacking
-    xContentTypeOptions: true,       // nosniff
+    frameguard: { action: "deny" },
+    xContentTypeOptions: true,
   })
 );
 
-
-
-// 3. Cookie Parser
+// 4. Cookie Parser (MUST come before CSRF)
 app.use(cookieParser());
-// xss protection
+
+// 5. XSS Protection
 app.use(xss());
-// 4. 🛡️ NOSQL INJECTION PROTECTION (Express v5 Compatible) - SIMPLE VERSION
+
+// 6. 🛡️ NOSQL INJECTION PROTECTION
 app.use((req, res, next) => {
-  // Sanitize req.body
   if (req.body) {
-    req.body = mongoSanitize.sanitize(req.body, {
-      replaceWith: '_'
-    });
+    req.body = mongoSanitize.sanitize(req.body, { replaceWith: '_' });
   }
-
-  // Sanitize req.query
   if (req.query) {
-    req.query = mongoSanitize.sanitize(req.query, {
-      replaceWith: '_'
-    });
+    req.query = mongoSanitize.sanitize(req.query, { replaceWith: '_' });
   }
-
-  // Sanitize req.params
   if (req.params) {
-    req.params = mongoSanitize.sanitize(req.params, {
-      replaceWith: '_'
-    });
+    req.params = mongoSanitize.sanitize(req.params, { replaceWith: '_' });
   }
-
   next();
 });
 
-// 5. Debug Middleware (Optional - can remove in production)
+// 7. 🔒 CSRF PROTECTION (NEW)
+// Apply CSRF protection to state-changing routes
+app.use(csrfProtection);
+app.use(attachCsrfToken);
+
+// 8. Debug Middleware
 app.use((req, res, next) => {
   if (process.env.NODE_ENV === 'development') {
     console.log('🍪 Cookies received:', req.cookies);
@@ -164,8 +149,7 @@ app.use((req, res, next) => {
   next();
 });
 
-
-// 6A. ✅ Allow cross-origin access ONLY for static images
+// 9. Static Files
 app.use(
   "/uploads",
   helmet({
@@ -174,8 +158,6 @@ app.use(
     },
   })
 );
-
-// 6. Static Files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ==========================================
@@ -184,10 +166,11 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 connectDB();
 
 // ==========================================
+// ERROR HANDLERS
+// ==========================================
 app.use((err, req, res, next) => {
   if (err.type === 'entity.too.large') {
     console.error(`❌ Payload too large from ${req.ip}: ${err.message}`);
-
     return res.status(413).json({
       success: false,
       message: 'Request payload too large. Maximum size is 10KB.',
@@ -195,9 +178,20 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Pass other errors to default handler
+  // 🔒 CSRF Error Handler
+  if (err.code === 'EBADCSRFTOKEN') {
+    console.error(`❌ CSRF Token Validation Failed from ${req.ip}`);
+    return res.status(403).json({
+      success: false,
+      message: 'Invalid CSRF token. Please refresh and try again.',
+      error: 'INVALID_CSRF_TOKEN'
+    });
+  }
+
   next(err);
 });
+
+// ==========================================
 // ROUTES
 // ==========================================
 app.use("/api/auth", userRoutes);
@@ -212,6 +206,5 @@ app.use("/api/user/category", userCategoryRoutes);
 app.use("/api/user/product", userProductRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/esewa", esewaRoutes);
-
 
 module.exports = { app, server };

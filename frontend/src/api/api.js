@@ -3,16 +3,30 @@ import axios from "axios";
 const axiosInstance = axios.create({
     baseURL: "http://localhost:5050/api",
     timeout: 10000,
-    withCredentials: true // 🔒 NEW: Send cookies with requests
+    withCredentials: true
 });
+
+// 🔒 Get CSRF token from cookie
+const getCsrfToken = () => {
+    const cookies = document.cookie.split(';');
+    const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('XSRF-TOKEN='));
+    return csrfCookie ? csrfCookie.split('=')[1] : null;
+};
 
 axiosInstance.interceptors.request.use(
     (config) => {
-        // 🔒 REMOVED: No longer reading token from localStorage
         console.log("🚀 AXIOS INTERCEPTOR - REQUEST");
         console.log("   URL:", config.url);
         console.log("   Method:", config.method);
-        console.log("   Cookies will be sent automatically");
+
+        // 🔒 Add CSRF token to state-changing requests
+        if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
+            const csrfToken = getCsrfToken();
+            if (csrfToken) {
+                config.headers['X-CSRF-Token'] = csrfToken;
+                console.log("   🔒 CSRF Token added");
+            }
+        }
 
         return config;
     },
@@ -31,7 +45,13 @@ axiosInstance.interceptors.response.use(
         console.log("❌ AXIOS INTERCEPTOR - RESPONSE ERROR");
         console.log("   Status:", error.response?.status);
         console.log("   Message:", errorMessage);
-        console.log("   URL:", error.config?.url);
+
+        // 🔒 Handle CSRF errors
+        if (error.response?.status === 403 && errorMessage.includes('CSRF')) {
+            console.log("⚠️ CSRF token invalid. Refreshing page...");
+            window.location.reload();
+            return;
+        }
 
         if (error.response?.status === 401) {
             if (errorMessage.includes("expired") ||
@@ -40,7 +60,7 @@ axiosInstance.interceptors.response.use(
                 errorMessage.includes("Please login")) {
 
                 console.log("⚠️ Session expired. Clearing and redirecting...");
-                localStorage.removeItem("user"); // 🔒 Only clear user data, NOT token
+                localStorage.removeItem("user");
 
                 setTimeout(() => {
                     window.location.href = "/login";
@@ -48,17 +68,12 @@ axiosInstance.interceptors.response.use(
             } else if (errorMessage.includes("Password recently changed")) {
                 console.log("⚠️ Password changed. Please login again.");
                 alert("Your password was recently changed. Please login again.");
-
                 localStorage.removeItem("user");
 
                 setTimeout(() => {
                     window.location.href = "/login";
                 }, 1000);
             }
-        }
-
-        if (error.response?.status === 403) {
-            console.error("403 Forbidden Error:", error.response?.data);
         }
 
         return Promise.reject(error);

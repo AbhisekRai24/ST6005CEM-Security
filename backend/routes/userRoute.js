@@ -4,6 +4,8 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middlewares/fileupload");
+const verifyCaptcha = require("../middlewares/verifyCaptcha");
+
 const {
   registerUser,
   loginUser,
@@ -12,6 +14,7 @@ const {
   resetPassword,
   sendResetLink,
   changePassword,
+
   logoutUser,
   getCurrentUserProfile
 } = require("../controllers/userController");
@@ -46,14 +49,23 @@ router.post(
 );
 
 // 🔒 LOGIN - Double rate limiting (IP + Account based)
+// router.post(
+//   "/login",
+//   loginLimiter,           // IP-based: 10 attempts per 15 min
+//   accountLoginLimiter,    // Account-based: 5 attempts per 15 min
+//   detectSuspiciousActivity,
+//   verifyCaptcha, // Add this middleware
+
+//   loginUser
+// );
 router.post(
   "/login",
-  loginLimiter,           // IP-based: 10 attempts per 15 min
-  accountLoginLimiter,    // Account-based: 5 attempts per 15 min
+  loginLimiter,           // IP-based: 10 attempts per 15 min (more lenient)
   detectSuspiciousActivity,
+  verifyCaptcha,          // ✅ Verify CAPTCHA first (if required)
+  accountLoginLimiter,    // Account-based: stricter limit AFTER captcha
   loginUser
 );
-
 // 🔒 LOGOUT
 router.post("/logout", logoutUser);
 
@@ -91,6 +103,14 @@ router.get(
   checkPasswordExpiry,
   getUser
 );
+
+// 🔒 GET CSRF TOKEN (Public route - no auth required)
+router.get('/csrf-token', (req, res) => {
+  res.json({
+    success: true,
+    csrfToken: req.csrfToken()
+  });
+});
 
 // 🔒 UPDATE USER
 // Allows users to update their own profile OR admins to update any profile
