@@ -37,3 +37,4 @@
 [2026-01-25T09:09:26.467Z] FAILED LOGIN | Email: marky@gmail.com | IP: 127.0.0.1 | Reason: Wrong password (2/5)
 [2026-01-25T09:09:27.193Z] FAILED LOGIN | Email: marky@gmail.com | IP: 127.0.0.1 | Reason: Wrong password (3/5)
 [2026-01-25T09:09:40.269Z] FAILED LOGIN | Email: marky@gmail.com | IP: 127.0.0.1 | Reason: Wrong password (4/5)
+[2026-01-25T16:29:45.160Z] FAILED LOGIN | Email: test25@gmail.com | IP: 127.0.0.1 | Reason: User not found

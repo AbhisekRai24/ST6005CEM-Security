@@ -56,11 +56,27 @@ const clearTokenCookie = (res) => {
 const emitNotification = (userId, notification) => {
     try {
         const io = global.io;
-        if (io && userId) {
-            emitNotification(user._id, notification);
-        } else {
-            console.warn('⚠️ Socket.IO not initialized or userId missing. Notification not sent.');
+
+        if (!io) {
+            console.warn('⚠️ Socket.IO not initialized');
+            return;
         }
+
+        if (!userId) {
+            console.warn('⚠️ userId missing for notification');
+            return;
+        }
+
+        // ✅ Convert notification to plain object if it's a Mongoose document
+        const notificationData = notification.toObject ? notification.toObject() : notification;
+
+        // ✅ Emit to the specific user's room
+        io.to(userId.toString()).emit('notification', notificationData);
+
+        console.log(`✅ Notification emitted to user: ${userId}`);
+        console.log(`   Type: ${notificationData.type}`);
+        console.log(`   Message: ${notificationData.message}`);
+
     } catch (err) {
         console.error('❌ Error emitting notification:', err);
     }

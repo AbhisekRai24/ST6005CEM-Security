@@ -1,4 +1,5 @@
-
+// 🔐 MAIN.JSX WITH CSRF INITIALIZATION
+// Location: frontend/src/main.jsx
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -13,9 +14,9 @@ import { ToastContainer, Zoom } from 'react-toastify'
 import { ThemeModeProvider } from './components/darkTheme/ThemeContext.jsx'
 import { NotificationProvider } from './notification/NotifiacationContext.jsx'
 import { AuthContext } from './auth/AuthProvider.jsx';
+import { initializeCsrfToken } from './api/api'; // ✅ NEW IMPORT
 
 const queryClient = new QueryClient()
-
 
 function AppWithNotifications() {
   const { user } = useContext(AuthContext)
@@ -33,14 +34,34 @@ function AppWithNotifications() {
   )
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <AuthContextProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeModeProvider>
-          <AppWithNotifications />
-        </ThemeModeProvider>
-      </QueryClientProvider>
-    </AuthContextProvider>
-  </StrictMode>
-)
+// ✅ NEW: Initialize CSRF token before rendering
+initializeCsrfToken().then(() => {
+  console.log("🔒 CSRF token initialized, rendering app...");
+
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <AuthContextProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeModeProvider>
+            <AppWithNotifications />
+          </ThemeModeProvider>
+        </QueryClientProvider>
+      </AuthContextProvider>
+    </StrictMode>
+  )
+}).catch((err) => {
+  console.error("❌ Failed to initialize CSRF token:", err);
+
+  // Still render app even if CSRF init fails
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <AuthContextProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeModeProvider>
+            <AppWithNotifications />
+          </ThemeModeProvider>
+        </QueryClientProvider>
+      </AuthContextProvider>
+    </StrictMode>
+  )
+});

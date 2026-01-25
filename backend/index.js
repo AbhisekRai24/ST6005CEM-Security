@@ -10,7 +10,7 @@ const xss = require('xss-clean');
 const helmet = require('helmet');
 
 const connectDB = require("./config/db");
-const { csrfProtection, attachCsrfToken } = require("./middlewares/csrf"); // 🔒 NEW
+const { csrfProtection, attachCsrfToken } = require("./middlewares/csrf"); // 🔒 FIXED
 
 const userRoutes = require("./routes/userRoute");
 const twoFARoutes = require("./routes/2faRoutes");
@@ -27,12 +27,19 @@ const esewaRoutes = require("./routes/esweaRoutes");
 
 const app = express();
 const server = http.createServer(app);
+
+// ==========================================
+// SOCKET.IO CONFIGURATION (BEFORE MIDDLEWARE)
+// ==========================================
 const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173",
     methods: ["GET", "POST"],
     credentials: true
   },
+  // ✅ Additional Socket.IO security settings
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
 });
 
 global.io = io;
@@ -42,7 +49,7 @@ io.on("connection", (socket) => {
 
   socket.on("join", (userId) => {
     socket.join(userId);
-    console.log(`User ${userId} joined their room`);
+    console.log(`👤 User ${userId} joined their room`);
   });
 
   socket.on("disconnect", () => {
@@ -70,7 +77,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-CSRF-Token'], // 🔒 Added CSRF header
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-CSRF-Token'],
   exposedHeaders: ['set-cookie'],
   maxAge: 86400,
   optionsSuccessStatus: 200
@@ -108,7 +115,7 @@ app.use(
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "blob:"],
-        connectSrc: ["'self'", "http://localhost:5173"],
+        connectSrc: ["'self'", "http://localhost:5173", "ws://localhost:5050"], // ✅ Added WebSocket
       },
     },
     frameguard: { action: "deny" },
@@ -136,15 +143,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// 7. 🔒 CSRF PROTECTION (NEW)
-// Apply CSRF protection to state-changing routes
+// 7. 🔒 CSRF PROTECTION (FIXED - Now excludes Socket.IO)
 app.use(csrfProtection);
 app.use(attachCsrfToken);
 
 // 8. Debug Middleware
 app.use((req, res, next) => {
   if (process.env.NODE_ENV === 'development') {
-    console.log('🍪 Cookies received:', req.cookies);
+    console.log('🔗 Request:', req.method, req.path);
   }
   next();
 });
@@ -178,9 +184,9 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // 🔒 CSRF Error Handler
+  // 🔒 CSRF Error Handler (should not trigger for Socket.IO anymore)
   if (err.code === 'EBADCSRFTOKEN') {
-    console.error(`❌ CSRF Token Validation Failed from ${req.ip}`);
+    console.error(`❌ CSRF Token Validation Failed from ${req.ip} on ${req.path}`);
     return res.status(403).json({
       success: false,
       message: 'Invalid CSRF token. Please refresh and try again.',

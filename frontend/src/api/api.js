@@ -1,3 +1,6 @@
+// 🔐 AXIOS CONFIGURATION WITH IMPROVED CSRF HANDLING
+// Location: frontend/src/api/api.js
+
 import axios from "axios";
 
 const axiosInstance = axios.create({
@@ -6,11 +9,41 @@ const axiosInstance = axios.create({
     withCredentials: true
 });
 
-// 🔒 Get CSRF token from cookie
+// 🔒 Get CSRF token from cookie (improved)
 const getCsrfToken = () => {
     const cookies = document.cookie.split(';');
     const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('XSRF-TOKEN='));
-    return csrfCookie ? csrfCookie.split('=')[1] : null;
+    const token = csrfCookie ? decodeURIComponent(csrfCookie.split('=')[1]) : null;
+    
+    if (!token) {
+        console.warn("⚠️ CSRF token not found in cookies");
+        console.log("   Available cookies:", document.cookie);
+    }
+    
+    return token;
+};
+
+// ✅ NEW: Fetch CSRF token before app starts
+let csrfTokenFetched = false;
+
+export const initializeCsrfToken = async () => {
+    if (csrfTokenFetched) return;
+    
+    try {
+        console.log("🔒 Fetching initial CSRF token...");
+        // Make a GET request to any endpoint to get CSRF token in cookie
+        await axios.get("http://localhost:5050/api/auth/me", {
+            withCredentials: true
+        }).catch(() => {
+            // It's okay if this fails (user not logged in)
+            console.log("   CSRF token cookie should be set now");
+        });
+        
+        csrfTokenFetched = true;
+        console.log("✅ CSRF token initialized");
+    } catch (err) {
+        console.error("❌ Failed to initialize CSRF token:", err);
+    }
 };
 
 axiosInstance.interceptors.request.use(
@@ -22,9 +55,12 @@ axiosInstance.interceptors.request.use(
         // 🔒 Add CSRF token to state-changing requests
         if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
             const csrfToken = getCsrfToken();
+            
             if (csrfToken) {
                 config.headers['X-CSRF-Token'] = csrfToken;
-                console.log("   🔒 CSRF Token added");
+                console.log("   ✅ CSRF Token added:", csrfToken.substring(0, 10) + "...");
+            } else {
+                console.error("   ❌ CSRF Token missing! Request may fail.");
             }
         }
 
@@ -45,12 +81,16 @@ axiosInstance.interceptors.response.use(
         console.log("❌ AXIOS INTERCEPTOR - RESPONSE ERROR");
         console.log("   Status:", error.response?.status);
         console.log("   Message:", errorMessage);
+        console.log("   URL:", error.config?.url);
 
         // 🔒 Handle CSRF errors
-        if (error.response?.status === 403 && errorMessage.includes('CSRF')) {
-            console.log("⚠️ CSRF token invalid. Refreshing page...");
-            window.location.reload();
-            return;
+        if (error.response?.status === 403) {
+            if (errorMessage.includes('CSRF') || error.response?.data?.error === 'INVALID_CSRF_TOKEN') {
+                console.log("⚠️ CSRF token invalid. Refreshing page...");
+                alert("Security token expired. Page will refresh.");
+                window.location.reload();
+                return Promise.reject(error);
+            }
         }
 
         if (error.response?.status === 401) {
