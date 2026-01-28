@@ -12,13 +12,13 @@ export default function RegisterForm() {
     firstName: '',
     lastName: '',
     password: '',
-    confirmPassword: '' // 🔒 Added confirm password
+    confirmPassword: '' 
   });
   const [profileImage, setProfileImage] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [validationErrors, setValidationErrors] = useState({}); // 🔒 Local validation
+  const [validationErrors, setValidationErrors] = useState({}); 
 
-  // Update preview when profileImage changes
+  
   useEffect(() => {
     if (!profileImage) {
       setPreview(null);
@@ -37,7 +37,7 @@ export default function RegisterForm() {
       [e.target.name]: e.target.value
     });
 
-    // Clear validation error for this field
+   
     if (validationErrors[e.target.name]) {
       setValidationErrors({
         ...validationErrors,
