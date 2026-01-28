@@ -1,5 +1,3 @@
-// 🔐 AXIOS CONFIGURATION WITH IMPROVED CSRF HANDLING
-// Location: frontend/src/api/api.js
 
 import axios from "axios";
 
