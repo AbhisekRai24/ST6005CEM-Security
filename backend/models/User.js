@@ -118,9 +118,7 @@ const UserSchema = new mongoose.Schema(
     }
 );
 
-// ==========================================
-// 🔐 PRE-SAVE HOOK: ENCRYPT SENSITIVE FIELDS
-// ==========================================
+
 UserSchema.pre('save', async function (next) {
     try {
         // Encrypt phone number
@@ -181,9 +179,7 @@ UserSchema.pre('save', async function (next) {
     }
 });
 
-// ==========================================
-// 🔐 INSTANCE METHODS
-// ==========================================
+
 
 UserSchema.methods.getDecryptedData = function () {
     const user = this.toObject();
