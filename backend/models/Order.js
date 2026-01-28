@@ -13,8 +13,8 @@ const ProductSchema = new mongoose.Schema({
   price: Number,
   quantity: Number,
   productImage: String,
-  addons: [AddonSchema], // <-- new addons array here
-  default: [],  // if no addons provided, default to empty array
+  addons: [AddonSchema], 
+  default: [],  
 });
 
 const orderSchema = new mongoose.Schema({
@@ -43,7 +43,7 @@ const orderSchema = new mongoose.Schema({
   orderType: {
     type: String,
     enum: ["dine-in", "takeaway"],
-    // REMOVED default since we're no longer using orderType for ecommerce
+
   },
   paymentMethod: {
     type: String,
