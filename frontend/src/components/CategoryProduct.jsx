@@ -1,38 +1,5 @@
 
 
-// // src/components/CategoryProducts.jsx
-// import React, { useState, useEffect, useContext } from "react"
-// import { useParams, useNavigate } from "react-router-dom"
-// import { ShoppingCart, Plus } from "lucide-react"
-// import { getBackendImageUrl } from '../utils/backend-image'
-// import { useProductsByCategory } from '../hooks/admin/useAdminProduct'
-// import { useGetOneCategory } from '../hooks/admin/useAdminCategory'
-// import { useCreateOrder } from "../hooks/useCreateOrder"
-// import { AuthContext } from "../auth/AuthProvider"
-// import { toast } from "react-toastify"
-// import UserSidebar from "./UserSideBar"
-// import AddToCartPopup from "./AddToCartPopup"
-// import ProductDetailsModal from "./ProductDetailsModal"  // import your modal
-// import OrderTypeModal from "./OrderType"
-
-// export default function CategoryProducts() {
-//   const { categoryId } = useParams()
-//   const navigate = useNavigate()
-//   const { user } = useContext(AuthContext)
-
-//   // Fetch products under category
-//   const { data: products = [], isLoading: productsLoading, isError: productsError } = useProductsByCategory(categoryId)
-//   const { category, isLoading: categoryLoading, isError: categoryError } = useGetOneCategory(categoryId)
-
-//   const [cart, setCart] = useState([])
-//   const [isCartOpen, setIsCartOpen] = useState(false)
-//   const [popupProduct, setPopupProduct] = useState(null)
-//   const [popupQuantity, setPopupQuantity] = useState(0)
-//   const [isOrderTypeModalOpen, setIsOrderTypeModalOpen] = useState(false)
-//   const [selectedOrderType, setSelectedOrderType] = useState(null)
-//   const [selectedProduct, setSelectedProduct] = useState(null);
-
-
 //   // Load saved cart
 //   useEffect(() => {
 //     const storedCart = localStorage.getItem("cart")

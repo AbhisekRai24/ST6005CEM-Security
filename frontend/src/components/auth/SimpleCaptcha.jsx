@@ -169,7 +169,7 @@ const SimpleCaptcha = ({ onVerify, onFail, onClose }) => {
                     </p>
                 </div>
             </div>
-        </>, document.body);  // ✅ Render to body for full-screen overlay
+        </>, document.body);  
 };
 
 export default SimpleCaptcha
