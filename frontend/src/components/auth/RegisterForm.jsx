@@ -50,7 +50,6 @@ export default function RegisterForm() {
     setProfileImage(e.target.files[0]);
   };
 
-  // 🔒 FRONTEND VALIDATION
   const validateForm = () => {
     const errors = {};
 
@@ -121,7 +120,6 @@ export default function RegisterForm() {
         onSubmit={handleSubmit}
         className="flex flex-col space-y-4 text-left mt-6"
       >
-        {/* Profile Image */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Profile Image (Optional)
