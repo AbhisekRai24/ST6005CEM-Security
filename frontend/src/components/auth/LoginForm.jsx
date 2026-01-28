@@ -139,15 +139,7 @@ export default function LoginForm() {
     return (
         <>
             {/* 🔐 2FA VERIFICATION MODAL */}
-            {show2FAModal && (
-                <TwoFAVerifyModal
-                    userId={twoFAUserId}
-                    onVerify={handle2FAVerification}
-                    onCancel={() => setShow2FAModal(false)}
-                    backupCodesAvailable={backupCodesAvailable}
-                />
-            )}
-
+            
             <form onSubmit={formik.handleSubmit} className="space-y-5">
                 {/* Email Field */}
                 <div>
