@@ -55,8 +55,7 @@ export default function LoginForm() {
                         setShow2FAModal(true);
                         return;
                     }
-                    // Normal login success - redirect handled by useLoginUser hook
-                    // Reset captcha on success
+                  
                     setShowCaptcha(false);
                     setCaptchaToken(null);
                 },
@@ -126,7 +125,7 @@ export default function LoginForm() {
         setCaptchaToken(null);
     };
 
-    // Check for various error states
+  
     const isAccountLocked = error?.message?.includes('Account locked') ||
         error?.message?.includes('locked due to');
 
