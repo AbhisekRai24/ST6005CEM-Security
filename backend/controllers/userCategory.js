@@ -1,6 +1,6 @@
 const Category = require('../models/Category');
 
-// Create a new category
+
 exports.createCategory = async (req, res) => {
     try {
         const filename = req.file?.path
@@ -37,7 +37,7 @@ exports.getCategoryById = async (req, res) => {
     }
 };
 
-// Update a category
+
 exports.updateCategory = async (req, res) => {
     try {
         const category = await Category.findByIdAndUpdate(
@@ -52,7 +52,7 @@ exports.updateCategory = async (req, res) => {
     }
 };
 
-// Delete a category
+
 exports.deleteCategory = async (req, res) => {
     try {
         const result = await Category.findByIdAndDelete(req.params.id);
