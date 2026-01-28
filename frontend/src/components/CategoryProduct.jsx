@@ -1,38 +1,4 @@
 
-
-//   const closePopup = () => {
-//     setPopupProduct(null)
-//     setPopupQuantity(0)
-//   }
-
-//   const incrementPopupQty = () => {
-//     updateQuantity(popupProduct._id, popupQuantity + 1)
-//     setPopupQuantity((q) => q + 1)
-//   }
-
-//   const decrementPopupQty = () => {
-//     if (popupQuantity > 1) {
-//       updateQuantity(popupProduct._id, popupQuantity - 1)
-//       setPopupQuantity((q) => q - 1)
-//     }
-//   }
-
-//   const createOrderMutation = useCreateOrder(() => {
-//     localStorage.removeItem("cart");
-//     setCart([]);
-//     setIsCartOpen(false);
-//     navigate("/normal/myorders");
-//   });
-
-//   const handleCheckout = () => {
-//     if (cart.length === 0) return;
-//     setIsOrderTypeModalOpen(true);
-//   };
-
-//   const handleOrderTypeSelect = (type) => {
-//     setSelectedOrderType(type);
-//     setIsOrderTypeModalOpen(false);
-
 //     const order = {
 //       userId: user._id,
 //       products: cart,
