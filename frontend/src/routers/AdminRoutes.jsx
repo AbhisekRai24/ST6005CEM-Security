@@ -1,18 +1,9 @@
-// 🔒 ADMIN ROUTE GUARD - Frontend Protection
-// Location: frontend/src/routes/AdminRoute.jsx
 
 import { Navigate, Outlet } from "react-router-dom";
 import { AuthContext } from "../auth/AuthProvider";
 import { useContext } from "react";
 import React from 'react';
 
-/**
- * AdminRoute Component
- * Protects admin-only routes on the frontend
- * 
- * IMPORTANT: This is UX protection only!
- * Real security is enforced on the backend with authorize() middleware
- */
 
 export default function AdminRoute() {
     const { user, loading } = useContext(AuthContext);
