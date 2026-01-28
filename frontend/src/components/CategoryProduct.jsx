@@ -1,37 +1,4 @@
-mber(a1[i].quantity) !== Number(a2[i].quantity)
-//           )
-//             return false;
-//         }
-//         return true;
-//       });
 
-//       if (existingIndex >= 0) {
-//         const updated = [...prev];
-//         updated[existingIndex].quantity += productWithAddons.quantity;
-//         return updated;
-//       }
-
-//       return [...prev, productWithAddons];
-//     });
-//   };
-
-
-//   const removeFromCart = (productId) => {
-//     setCart((prev) => prev.filter((p) => p._id !== productId))
-//   }
-
-//   const updateQuantity = (id, newQty) => {
-//     if (newQty < 1) return
-//     setCart((prev) =>
-//       prev.map((item) =>
-//         item._id === id ? { ...item, quantity: newQty } : item
-//       )
-//     )
-//   }
-
-//   const clearCart = () => {
-//     setCart([])
-//   }
 
 //   const closePopup = () => {
 //     setPopupProduct(null)
