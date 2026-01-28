@@ -1,13 +1,13 @@
 const Order = require("../models/Order");
 
-// Mock eSewa Configuration (for demo/college project)
+
 const ESEWA_CONFIG = {
   merchantId: "DEMO_MERCHANT",
   successUrl: "http://localhost:5173/payment/success",
   failureUrl: "http://localhost:5173/payment/failure",
 };
 
-// Create mock eSewa payment (simulated)
+
 exports.createEsewaPayment = async (req, res) => {
   try {
     const { amount, pid } = req.body;
