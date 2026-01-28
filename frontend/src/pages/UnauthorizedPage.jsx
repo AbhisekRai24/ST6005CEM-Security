@@ -8,7 +8,7 @@ export default function Unauthorized() {
     return (
         <div className="min-h-screen bg-white flex items-center justify-center p-6">
             <div className="max-w-4xl w-full grid md:grid-cols-2 gap-12 items-center">
-                {/* Left Side: Illustration/Icon */}
+                
                 <div className="relative flex justify-center">
                     <div className="absolute inset-0 bg-red-100 rounded-full blur-3xl opacity-50 animate-pulse"></div>
                     <div className="relative bg-white p-8 rounded-3xl shadow-2xl border border-gray-100">
@@ -16,7 +16,7 @@ export default function Unauthorized() {
                     </div>
                 </div>
 
-                {/* Right Side: Content */}
+             
                 <div className="text-left">
                     <span className="px-3 py-1 rounded-full bg-red-50 text-red-600 text-sm font-bold tracking-wider uppercase">
                         Error 403
