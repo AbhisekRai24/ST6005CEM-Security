@@ -13,14 +13,14 @@ export const createOrderService = async (data) => {
 
 export const getAllOrdersService = async () => {
   const response = await getAllOrdersApi();
-  return response.data;  // <-- Return only the data property (array)
+  return response.data;  
 };
 
 export const getOrdersByUserService = async (userId) => {
   const response = await getOrdersByUserApi(userId);
-  return response.data; // ✅ Fix: return just the order list
+  return response.data; 
 };
-// ✅ Update order status
+
 export const updateOrderStatusService = async ({ orderId, status }) => {
   const res = await updateOrderStatusApi(orderId, status);
   return res.data;
