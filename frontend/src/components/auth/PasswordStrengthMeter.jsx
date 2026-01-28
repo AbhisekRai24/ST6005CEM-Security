@@ -76,5 +76,16 @@ const PasswordStrengthMeter = ({ password }) => {
     );
 };
 
+const RequirementCheck = ({ met, text }) => (
+    <div className="flex items-center gap-2">
+        <span className={met ? 'text-green-600' : 'text-gray-400'}>
+            {met ? '✓' : '○'}
+        </span>
+        <span className={met ? 'text-green-600' : 'text-gray-500'}>
+            {text}
+        </span>
+    </div>
+);
+
 
 export default PasswordStrengthMeter;
