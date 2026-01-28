@@ -27,11 +27,10 @@ export const logoutUserApi = () => axios.post("/auth/logout");
 // USER PROFILE
 // ==========================================
 
-//  Get current authenticated user (primary endpoint)
 export const getCurrentUserApi = () =>
   axios.get("/auth/me").then(res => res.data.data);
 
-// Get user by ID - now uses correct user route instead of admin route
+// Get user by ID - 
 // This can be used for viewing own profile or admin viewing other users
 export const getUserByIdApi = (id) =>
   axios.get(`/auth/${id}`).then(res => res.data.data);
