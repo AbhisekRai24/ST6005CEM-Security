@@ -14,6 +14,7 @@ import { toast } from "react-toastify"
 import PaymentMethodModal from "./payment/PaymentMethodModal"
 import ProductDetailsModal from "./ProductDetailsModal"
 import DeliveryInfoModal from "./DeliverInfoModal"
+import api from "../api/api";
 
 export default function UserDashboard() {
   const { user } = useContext(AuthContext)
@@ -156,25 +157,27 @@ export default function UserDashboard() {
     if (selectedPaymentMethod === "cash") {
       createOrderMutation.mutate(order);
     } else if (selectedPaymentMethod === "online") {
-      triggerEsewaPayment(order);
+      triggerStripePayment(order);
     }
   };
-
-  const triggerEsewaPayment = (order) => {
-    axios
-      .post("http://localhost:5050/api/esewa/create-payment", {
-        amount: order.total,
-        pid: order._id
-      })
-      .then(({ data }) => {
-        if (data.url) window.location.href = data.url;
-        else toast.error("Failed to get payment URL");
-      })
-      .catch(() => {
-        toast.error("Error initiating eSewa payment");
+  // REPLACE the triggerEsewaPayment function with this:
+  const triggerStripePayment = async (order) => {
+    try {
+      const response = await api.post("/stripe/create-checkout-session", {
+        orderData: order
       });
-  };
 
+      if (response.data.success && response.data.url) {
+        // Redirect to Stripe checkout
+        window.location.href = response.data.url;
+      } else {
+        toast.error("Failed to initiate payment");
+      }
+    } catch (error) {
+      console.error("Stripe payment error:", error);
+      toast.error("Error initiating payment");
+    }
+  };
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900 flex justify-center items-center">

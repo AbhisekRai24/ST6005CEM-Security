@@ -33,7 +33,8 @@ import EditProduct from "../components/admin/product/EditProduct";
 import ResetPassword from "../components/auth/ResetPassword";
 import RequestReset from "../components/auth/RequestReset";
 import SettingsPage from "../components/Settings/twoFASettings";
-// import ChangePassword from "../pages/ChangePassword";
+import PaymentSuccess from '../pages/PaymentSuccess';
+import PaymentCancelled from '../pages/PaymentCancelled';
 
 
 import Unauthorized from "../pages/UnauthorizedPage";
@@ -64,8 +65,8 @@ function App() {
                         <Route path="myorders" element={<MyOrders />} />
                         <Route path="profile" element={<ProfilePage />} />
                         <Route path="settings" element={<SettingsPage />} />
-                        {/* <Route path="/change-password" element={<ChangePassword />} /> */}
-
+                        <Route path="payment-success" element={<PaymentSuccess />} />
+                        <Route path="payment-cancelled" element={<PaymentCancelled />} />
 
                         <Route path="notification" element={<Notifications />} />
                         <Route path="user/category/:categoryId" element={<CategoryProducts />} />

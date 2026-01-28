@@ -92,16 +92,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// 2. 🛡️ REQUEST SIZE LIMITING
-// app.use(express.json({
-//   limit: '10kb',
-//   verify: (req, res, buf, encoding) => {
-//     if (buf.length > 10240) {
-//       console.warn(`⚠️ Large payload rejected: ${buf.length} bytes from ${req.ip}`);
-//     }
-//   }
-// }));
-// 🛡️ REQUEST SIZE LIMITING (with Stripe webhook exception)
+
 app.use((req, res, next) => {
   if (req.originalUrl === '/api/stripe/webhook') {
     next(); // Skip parsing for webhook
