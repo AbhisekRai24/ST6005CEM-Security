@@ -26,7 +26,8 @@ const userCategoryRoutes = require("./routes/userCategoryRoute");
 const userProductRoutes = require("./routes/userProductRoute");
 const adminDashboardRoutes = require("./routes/admin/adminDashboardRoutes");
 const esewaRoutes = require("./routes/esweaRoutes");
-const testRoutes = require('./routes/testRoutes');
+const stripeRoutes = require("./routes/stripeRoutes");
+
 
 const app = express();
 const server = http.createServer(app);
@@ -92,14 +93,29 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 // 2. 🛡️ REQUEST SIZE LIMITING
-app.use(express.json({
-  limit: '10kb',
-  verify: (req, res, buf, encoding) => {
-    if (buf.length > 10240) {
-      console.warn(`⚠️ Large payload rejected: ${buf.length} bytes from ${req.ip}`);
-    }
+// app.use(express.json({
+//   limit: '10kb',
+//   verify: (req, res, buf, encoding) => {
+//     if (buf.length > 10240) {
+//       console.warn(`⚠️ Large payload rejected: ${buf.length} bytes from ${req.ip}`);
+//     }
+//   }
+// }));
+// 🛡️ REQUEST SIZE LIMITING (with Stripe webhook exception)
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/stripe/webhook') {
+    next(); // Skip parsing for webhook
+  } else {
+    express.json({
+      limit: '10kb',
+      verify: (req, res, buf, encoding) => {
+        if (buf.length > 10240) {
+          console.warn(`⚠️ Large payload rejected: ${buf.length} bytes from ${req.ip}`);
+        }
+      }
+    })(req, res, next);
   }
-}));
+});
 
 app.use(express.urlencoded({
   extended: true,
@@ -231,5 +247,6 @@ app.use("/api/user/category", userCategoryRoutes);
 app.use("/api/user/product", userProductRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/esewa", esewaRoutes);
+app.use("/api/stripe", stripeRoutes);
 
 module.exports = { app, server };
