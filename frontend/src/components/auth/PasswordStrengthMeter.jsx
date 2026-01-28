@@ -25,6 +25,56 @@ const calculatePasswordStrength = (password) => {
     return { score: 4, label: 'Strong', color: 'bg-green-500' };
 };
 
+const PasswordStrengthMeter = ({ password }) => {
+    const strength = calculatePasswordStrength(password);
+    const widthPercentage = (strength.score / 4) * 100;
+
+    return (
+        <div className="mt-2">
+            {/* Strength bar */}
+            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                    className={`h-full transition-all duration-300 ${strength.color}`}
+                    style={{ width: `${widthPercentage}%` }}
+                />
+            </div>
+
+            {/* Strength label */}
+            <div className="flex justify-between items-center mt-1">
+                <p className="text-sm text-gray-600">
+                    Password Strength: <span className="font-semibold">{strength.label}</span>
+                </p>
+                <p className="text-xs text-gray-500">{strength.score}/4</p>
+            </div>
+
+            {/* Password requirements checklist */}
+            {password && (
+                <div className="mt-3 space-y-1 text-xs">
+                    <RequirementCheck
+                        met={password.length >= 8}
+                        text="At least 8 characters"
+                    />
+                    <RequirementCheck
+                        met={/[A-Z]/.test(password)}
+                        text="Contains uppercase letter"
+                    />
+                    <RequirementCheck
+                        met={/[a-z]/.test(password)}
+                        text="Contains lowercase letter"
+                    />
+                    <RequirementCheck
+                        met={/[0-9]/.test(password)}
+                        text="Contains number"
+                    />
+                    <RequirementCheck
+                        met={/[@$!%*?&#]/.test(password)}
+                        text="Contains special character (@$!%*?&#)"
+                    />
+                </div>
+            )}
+        </div>
+    );
+};
 
 
 export default PasswordStrengthMeter;
