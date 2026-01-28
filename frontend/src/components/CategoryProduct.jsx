@@ -1,30 +1,4 @@
-
-
-//   // Load saved cart
-//   useEffect(() => {
-//     const storedCart = localStorage.getItem("cart")
-//     if (storedCart) {
-//       setCart(JSON.parse(storedCart))
-//     }
-//   }, [])
-
-//   useEffect(() => {
-//     localStorage.setItem("cart", JSON.stringify(cart))
-//   }, [cart])
-
-//   const handleAddToCart = (productWithAddons) => {
-//     setCart((prev) => {
-//       const existingIndex = prev.findIndex((item) => {
-//         if (item._id !== productWithAddons._id) return false;
-
-//         const a1 = item.addons || [];
-//         const a2 = productWithAddons.addons || [];
-//         if (a1.length !== a2.length) return false;
-//         for (let i = 0; i < a1.length; i++) {
-//           if (
-//             a1[i].name !== a2[i].name ||
-//             Number(a1[i].price) !== Number(a2[i].price) ||
-//             Number(a1[i].quantity) !== Number(a2[i].quantity)
+mber(a1[i].quantity) !== Number(a2[i].quantity)
 //           )
 //             return false;
 //         }
