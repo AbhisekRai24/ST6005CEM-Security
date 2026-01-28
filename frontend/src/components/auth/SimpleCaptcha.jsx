@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';  // ✅ PORTAL IMPORT
+import { createPortal } from 'react-dom';  
 import { RefreshCw, X } from 'lucide-react';
 
-const SimpleCaptcha = ({ onVerify, onFail, onClose }) => {  // ✅ Has onClose
+const SimpleCaptcha = ({ onVerify, onFail, onClose }) => {  
     const [captchaText, setCaptchaText] = useState('');
     const [userInput, setUserInput] = useState('');
     const [isVerified, setIsVerified] = useState(false);
@@ -40,14 +40,14 @@ const SimpleCaptcha = ({ onVerify, onFail, onClose }) => {  // ✅ Has onClose
         }
     };
 
-    // Handle Enter key press
+
     const handleKeyPress = (e) => {
         if (e.key === 'Enter') {
             handleVerify();
         }
     };
 
-    return createPortal(  // ✅ PORTAL WRAPPING
+    return createPortal(  
         <>
             <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center z-50">
                 <div className="w-full max-w-md mx-auto bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-6 shadow-lg border-2 border-orange-200">
