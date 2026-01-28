@@ -1,59 +1,61 @@
-
-
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldAlert, Home, ArrowLeft } from 'lucide-react';
+import { ShieldX, Home, MoveLeft, LockKeyhole } from 'lucide-react';
 
 export default function Unauthorized() {
     const navigate = useNavigate();
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
-            <div className="max-w-md w-full text-center">
-                {/* Icon */}
-                <div className="inline-flex p-6 bg-gradient-to-br from-red-500 to-orange-500 rounded-full mb-6 shadow-2xl">
-                    <ShieldAlert className="w-16 h-16 text-white" />
+        <div className="min-h-screen bg-white flex items-center justify-center p-6">
+            <div className="max-w-4xl w-full grid md:grid-cols-2 gap-12 items-center">
+                {/* Left Side: Illustration/Icon */}
+                <div className="relative flex justify-center">
+                    <div className="absolute inset-0 bg-red-100 rounded-full blur-3xl opacity-50 animate-pulse"></div>
+                    <div className="relative bg-white p-8 rounded-3xl shadow-2xl border border-gray-100">
+                        <LockKeyhole className="w-32 h-32 text-red-500" strokeWidth={1.5} />
+                    </div>
                 </div>
 
-                {/* Error Code */}
-                <h1 className="text-6xl font-bold text-gray-800 mb-2">403</h1>
-
-                {/* Title */}
-                <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                    Access Denied
-                </h2>
-
-                {/* Description */}
-                <p className="text-gray-600 mb-8">
-                    You don't have permission to access this page.
-                    This area is restricted to administrators only.
-                </p>
-
-                {/* Actions */}
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-lg transition-colors"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                        Go Back
-                    </button>
-
-                    <Link
-                        to="/normal/home"
-                        className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-xl"
-                    >
-                        <Home className="w-5 h-5" />
-                        Go Home
-                    </Link>
-                </div>
-
-                {/* Security Notice */}
-                <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-700">
-                        <strong>Security Notice:</strong> This attempt has been logged.
-                        Repeated unauthorized access attempts may result in account suspension.
+                {/* Right Side: Content */}
+                <div className="text-left">
+                    <span className="px-3 py-1 rounded-full bg-red-50 text-red-600 text-sm font-bold tracking-wider uppercase">
+                        Error 403
+                    </span>
+                    <h1 className="text-5xl font-extrabold text-gray-900 mt-4 mb-2">
+                        Access Restricted
+                    </h1>
+                    <p className="text-lg text-gray-500 mb-8 leading-relaxed">
+                        Oops! It looks like you've reached a restricted area.
+                        This page is reserved for authorized administrators only.
                     </p>
+
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="flex items-center justify-center gap-2 px-8 py-4 bg-gray-900 text-white hover:bg-gray-800 rounded-xl font-medium transition-all transform hover:-translate-y-1"
+                        >
+                            <MoveLeft className="w-5 h-5" />
+                            Go Back
+                        </button>
+
+                        <Link
+                            to="/normal/home"
+                            className="flex items-center justify-center gap-2 px-8 py-4 border-2 border-gray-200 text-gray-700 hover:border-gray-900 hover:text-gray-900 rounded-xl font-medium transition-all"
+                        >
+                            <Home className="w-5 h-5" />
+                            Return Home
+                        </Link>
+                    </div>
+
+                    <div className="mt-10 pt-6 border-t border-gray-100">
+                        <div className="flex items-start gap-3 text-gray-400">
+                            <ShieldX className="w-5 h-5 mt-0.5 text-red-400" />
+                            <p className="text-sm">
+                                Your IP and access attempt have been logged for security monitoring.
+                                If you believe this is an error, please contact your system provider.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

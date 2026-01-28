@@ -91,6 +91,14 @@ exports.getAllOrders = async (req, res) => {
 exports.getOrdersByUser = async (req, res) => {
   try {
     const { userId } = req.params;
+
+    // ADD THESE 5 LINES:
+    if (req.user._id.toString() !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({
+        message: "Access denied"
+      });
+    }
+
     const orders = await Order.find({ userId }).sort({ date: -1 });
     res.json(orders);
   } catch (error) {

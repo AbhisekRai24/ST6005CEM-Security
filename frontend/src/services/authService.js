@@ -7,7 +7,9 @@ import {
   updateUserApi,
   requestResetApi,
   resetPasswordApi,
-  getCurrentUserApi // ✅ ADDED
+  getCurrentUserApi,// ✅ ADDED
+  changePasswordApi // ✅ ADD THIS IMPORT
+
 } from "../api/authApi";
 
 // ==========================================
@@ -19,6 +21,16 @@ export const requestResetService = async (email) => {
 
 export const resetPasswordService = async (token, password) => {
   return await resetPasswordApi(token, { password });
+};
+// CHANGE PASSWORD (✅ NEW)
+// ==========================================
+export const changePasswordService = async (id, data) => {
+  try {
+    const response = await changePasswordApi(id, data);
+    return response;
+  } catch (err) {
+    throw err.response?.data || { message: "Failed to change password" };
+  }
 };
 
 // ==========================================
@@ -86,3 +98,4 @@ export const updateUserService = async (id, formData) => {
     throw err.response?.data || { message: "Failed to update user" }
   }
 }
+

@@ -4,6 +4,8 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middlewares/fileupload");
+const checkOwnership = require("../middlewares/checkOwnership"); // ADD THIS
+
 const verifyCaptcha = require("../middlewares/verifyCaptcha");
 
 const {
@@ -100,6 +102,7 @@ router.get(
 router.get(
   "/:id",
   authenticateUser,
+  checkOwnership('id'), 
   checkPasswordExpiry,
   getUser
 );
@@ -117,6 +120,7 @@ router.get('/csrf-token', (req, res) => {
 router.put(
   "/:id",
   authenticateUser,
+  checkOwnership('id'), 
   checkPasswordExpiry,
   upload.single("profileImage"),
   updateUser
@@ -126,6 +130,7 @@ router.put(
 router.put(
   "/:id/change-password",
   authenticateUser,
+  checkOwnership('id'), 
   detectSuspiciousActivity,
   changePassword
 );

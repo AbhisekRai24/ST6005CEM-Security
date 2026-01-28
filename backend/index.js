@@ -8,6 +8,8 @@ const cookieParser = require("cookie-parser");
 const mongoSanitize = require("express-mongo-sanitize");
 const xss = require('xss-clean');
 const helmet = require('helmet');
+const hpp = require('hpp');
+
 
 const connectDB = require("./config/db");
 const { csrfProtection, attachCsrfToken } = require("./middlewares/csrf"); // 🔒 FIXED
@@ -24,6 +26,7 @@ const userCategoryRoutes = require("./routes/userCategoryRoute");
 const userProductRoutes = require("./routes/userProductRoute");
 const adminDashboardRoutes = require("./routes/admin/adminDashboardRoutes");
 const esewaRoutes = require("./routes/esweaRoutes");
+const testRoutes = require('./routes/testRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +37,8 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173",
+    // origin: "http://192.168.1.70:5173",
+
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -130,6 +135,8 @@ app.use(cookieParser());
 app.use(xss());
 
 // 6. 🛡️ NOSQL INJECTION PROTECTION
+
+
 app.use((req, res, next) => {
   if (req.body) {
     req.body = mongoSanitize.sanitize(req.body, { replaceWith: '_' });
@@ -143,9 +150,18 @@ app.use((req, res, next) => {
   next();
 });
 
+
+// 6.5 🛡️ HTTP PARAMETER POLLUTION PROTECTION
+app.use(hpp({
+  whitelist: []
+}));
+
+
 // 7. 🔒 CSRF PROTECTION (FIXED - Now excludes Socket.IO)
 app.use(csrfProtection);
 app.use(attachCsrfToken);
+
+
 
 // 8. Debug Middleware
 app.use((req, res, next) => {
@@ -179,7 +195,7 @@ app.use((err, req, res, next) => {
     console.error(`❌ Payload too large from ${req.ip}: ${err.message}`);
     return res.status(413).json({
       success: false,
-      message: 'Request payload too large. Maximum size is 10KB.',
+      message: 'Maximum size of request payload is 10KB.',
       error: 'PAYLOAD_TOO_LARGE'
     });
   }
@@ -196,6 +212,9 @@ app.use((err, req, res, next) => {
 
   next(err);
 });
+
+
+
 
 // ==========================================
 // ROUTES

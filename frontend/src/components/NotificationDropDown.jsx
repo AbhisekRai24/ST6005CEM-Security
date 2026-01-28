@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { Bell, Clock, CheckCircle, Package, X } from "lucide-react"
+import { Bell, Clock, CheckCircle, Package, X, Shield, LogIn } from "lucide-react"
 import { Link } from "react-router-dom"
 import { useNotifications } from "../hooks/useNotification"
 
@@ -15,35 +15,53 @@ export default function NotificationDropdown({ userId }) {
 
   // Format message and status
   function formatNotification(notif) {
-    const orderIdMatch = notif.message.match(/([a-zA-Z0-9]{8,})/)
-    const orderId = orderIdMatch ? orderIdMatch[1] : null
-    const shortOrderId = orderId ? orderId.slice(-4) : null
+    // Check if this is an order-related notification
+    const isOrderNotification = /order/i.test(notif.message) ||
+      notif.type === "order" ||
+      ["pending", "processing", "completed", "shipped", "delivered"].includes(notif.status)
+
+    // Only extract order ID for order-related notifications
+    let orderId = null
+    let shortOrderId = null
+
+    if (isOrderNotification) {
+      const orderIdMatch = notif.message.match(/order[:\s#]*([a-zA-Z0-9]{8,})/i)
+      orderId = orderIdMatch ? orderIdMatch[1] : null
+      shortOrderId = orderId ? orderId.slice(-4) : null
+    }
 
     const status =
       notif.status ||
       (() => {
         if (/pending/i.test(notif.message)) return "pending"
         if (/processing/i.test(notif.message)) return "processing"
-        if (/completed/i.test(notif.message)) return "completed"
+        if (/completed|delivered/i.test(notif.message)) return "completed"
         return null
       })()
 
     let baseMsg = ""
-    switch (status) {
-      case "pending":
-        baseMsg = "Your order is pending confirmation"
-        break
-      case "processing":
-        baseMsg = "Your order is being prepared"
-        break
-      case "completed":
-        baseMsg = "Your order has been delivered. Enjoy your meal!"
-        break
-      default:
-        baseMsg = notif.message
+
+    // Only format order status messages if it's actually an order notification
+    if (isOrderNotification && status) {
+      switch (status) {
+        case "pending":
+          baseMsg = "Your order is pending confirmation"
+          break
+        case "processing":
+          baseMsg = "Your order is being prepared"
+          break
+        case "completed":
+          baseMsg = "Your order has been delivered. Enjoy your meal!"
+          break
+        default:
+          baseMsg = notif.message
+      }
+    } else {
+      // For non-order notifications, just use the message as-is
+      baseMsg = notif.message
     }
 
-    return shortOrderId ? `${baseMsg}. Order #${shortOrderId}` : baseMsg
+    return shortOrderId ? `${baseMsg} - Order #${shortOrderId}` : baseMsg
   }
 
   function formatDateTime(dateString) {
@@ -65,7 +83,28 @@ export default function NotificationDropdown({ userId }) {
     })
   }
 
-  function getStatusConfig(status) {
+  function getStatusConfig(notif) {
+    const message = notif.message?.toLowerCase() || ""
+    const status = notif.status
+
+    // Security notifications (password, login)
+    if (message.includes("password")) {
+      return {
+        color: "text-purple-600",
+        bg: "bg-purple-50",
+        icon: <Shield className="w-4 h-4" />,
+      }
+    }
+
+    if (message.includes("login") || message.includes("device") || message.includes("ip")) {
+      return {
+        color: "text-indigo-600",
+        bg: "bg-indigo-50",
+        icon: <LogIn className="w-4 h-4" />,
+      }
+    }
+
+    // Order notifications
     switch (status) {
       case "pending":
         return {
@@ -154,7 +193,7 @@ export default function NotificationDropdown({ userId }) {
             ) : (
               <div className="max-h-96 overflow-y-auto">
                 {notifications.slice(0, 5).map((notif) => {
-                  const statusConfig = getStatusConfig(notif.status)
+                  const statusConfig = getStatusConfig(notif)
                   return (
                     <button
                       key={notif._id}

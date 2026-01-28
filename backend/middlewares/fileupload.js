@@ -2,7 +2,6 @@ const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const path = require("path");
 const fs = require("fs");
-
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let folder = "uploads/";
@@ -10,13 +9,10 @@ const storage = multer.diskStorage({
     if (file.fieldname === "profileImage") {
       folder = "uploads/user/";
     }
-
-
     fs.mkdirSync(folder, { recursive: true });
 
     cb(null, folder);
   },
-
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname); 
     const filename = `${file.fieldname}-${uuidv4()}${ext}`;
@@ -31,7 +27,6 @@ const fileFilter = (req, file, cb) => {
     cb(new Error("Only image files are allowed!"), false);
   }
 };
-
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max

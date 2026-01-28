@@ -1,23 +1,16 @@
-// 🔒 SECURITY EVENT LOGGER (Step 2 - Attack Detection & Logging)
-
 
 const fs = require('fs');
 const path = require('path');
 
-// Ensure logs directory exists
 const logsDir = path.join(__dirname, '../logs');
 if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
 }
 
-// Security log file paths
 const SECURITY_LOG_FILE = path.join(logsDir, 'security.log');
 const FAILED_LOGIN_LOG = path.join(logsDir, 'failed-logins.log');
 const SUSPICIOUS_ACTIVITY_LOG = path.join(logsDir, 'suspicious-activity.log');
 
-/**
- * 📝 Write to log file with timestamp
- */
 const writeLog = (logFile, message) => {
     const timestamp = new Date().toISOString();
     const logEntry = `[${timestamp}] ${message}\n`;
@@ -27,9 +20,7 @@ const writeLog = (logFile, message) => {
     });
 };
 
-/**
- * 🔒 LOG FAILED LOGIN ATTEMPT
- */
+
 exports.logFailedLogin = (email, ip, reason = 'Invalid credentials') => {
     const message = `FAILED LOGIN | Email: ${email} | IP: ${ip} | Reason: ${reason}`;
     writeLog(FAILED_LOGIN_LOG, message);
@@ -111,20 +102,14 @@ exports.getSecurityStats = async () => {
  */
 exports.detectSuspiciousActivity = (req, res, next) => {
     const suspiciousPatterns = [
-        // SQL Injection attempts
         /('|--|;|\/\*|\*\/|xp_|sp_)/i,
 
-        // XSS attempts
         /(<script|javascript:|onerror=|onload=)/i,
 
-        // Path traversal
         /(\.\.\/|\.\.\\)/,
 
-        // Command injection
         /(\||&|;|\$\()/
     ];
-
-    // Check all request parameters
     const checkString = JSON.stringify({
         body: req.body,
         query: req.query,

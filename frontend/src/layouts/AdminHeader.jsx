@@ -121,9 +121,7 @@ export default function Header() {
         {/* Right - Actions & Profile */}
         <div className="flex items-center gap-3">
           {/* Dark Mode Toggle */}
-          <div className="hidden sm:block">
-            <DarkModeToggle />
-          </div>
+
 
           {/* Notifications */}
           <button className="relative p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all group">

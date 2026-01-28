@@ -1,5 +1,4 @@
-// 🔐 TWO-FACTOR AUTHENTICATION CONTROLLER
-// Location: backend/controllers/twoFAController.js
+
 
 const User = require("../models/User");
 const speakeasy = require("speakeasy");
@@ -7,10 +6,7 @@ const qrcode = require("qrcode");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 
-// ==========================================
-// 🔐 SETUP 2FA (Generate QR Code)
-// ==========================================
-// In your setup2FA controller
+
 exports.setup2FA = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -35,14 +31,7 @@ exports.setup2FA = async (req, res) => {
             issuer: 'RevModz'
         });
 
-        console.log('==================================================');
-        console.log('🔍 SETUP 2FA - DETAILED DEBUG');
-        console.log('==================================================');
-        console.log('User:', user.email);
-        console.log('Generated secret (base32):', secret.base32);
-        console.log('Secret length:', secret.base32.length);
-
-        // ✅ CRITICAL: Clear any existing temp secret first
+ 
         user.twoFactorTempSecret = secret.base32;
         await user.save();
 
@@ -79,6 +68,7 @@ exports.setup2FA = async (req, res) => {
 // ==========================================
 // 🔐 VERIFY & ENABLE 2FA
 // ==========================================
+
 exports.verifyAndEnable2FA = async (req, res) => {
     try {
         const userId = req.user._id;

@@ -1,33 +1,25 @@
-// 🔒 RATE LIMITING MIDDLEWARE (Updated with 2FA Support & CAPTCHA Integration)
-// Location: backend/middlewares/rateLimiter.js
 
 const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
 
-/**
- * 🛡️ GLOBAL API RATE LIMITER
- * Prevents general API abuse across all endpoints
- */
+
+ 
 exports.globalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
+    windowMs: 15 * 60 * 1000, 
+    max: 100, 
     message: {
         success: false,
         message: "Too many requests from this IP, please try again later."
     },
-    standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
-    legacyHeaders: false, // Disable `X-RateLimit-*` headers
+    standardHeaders: true, 
+    legacyHeaders: false, 
 });
 
-/**
- * 🔒 LOGIN RATE LIMITER (Aggressive - Brute Force Protection)
- * Limits login attempts per IP address
- * ✅ UPDATED: Increased limit to allow for CAPTCHA verification attempts
- */
+
 exports.loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 15, // ✅ Increased from 10 to 15 to allow CAPTCHA retries
-    skipSuccessfulRequests: true, // Don't count successful logins
+    windowMs: 15 * 60 * 1000, 
+    max: 15, 
+    skipSuccessfulRequests: true, 
     message: {
         success: false,
         message: "Too many login attempts from this IP. Please try again after 15 minutes.",
@@ -159,20 +151,17 @@ exports.createStrictRateLimiter = (options = {}) => {
                 success: false,
                 message: options.message || "Too many attempts. Please try again later.",
                 rateLimited: true,
-                retryAfter: Math.ceil((options.windowMs || 15 * 60 * 1000) / 60000) // in minutes
+                retryAfter: Math.ceil((options.windowMs || 15 * 60 * 1000) / 60000) 
             });
         }
     });
 };
 
-/**
- * 🔐 2FA VERIFICATION RATE LIMITER (NEW)
- * Specifically for 2FA token verification during login
- * Very strict to prevent brute force attacks on 2FA codes
- */
+
+ 
 exports.twoFAVerificationLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // Only 5 attempts per 15 minutes (2FA codes are 6 digits, very limited space)
+    windowMs: 15 * 60 * 1000, 
+    max: 5, // Only 5 attempts per 15 minutes 
     message: {
         success: false,
         message: "Too many 2FA verification attempts. Please try again later."
@@ -191,10 +180,6 @@ exports.twoFAVerificationLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-/**
- * 🔐 2FA SETUP RATE LIMITER (NEW)
- * Prevents abuse of QR code generation
- */
 exports.twoFASetupLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 10, // Max 10 setup attempts per hour
@@ -206,10 +191,7 @@ exports.twoFASetupLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-/**
- * 📊 RATE LIMIT INFO MIDDLEWARE
- * Adds rate limit info to response headers for monitoring
- */
+
 exports.addRateLimitInfo = (req, res, next) => {
     res.on('finish', () => {
         if (res.getHeader('RateLimit-Remaining')) {

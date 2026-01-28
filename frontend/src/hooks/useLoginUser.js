@@ -7,7 +7,8 @@ import {
     getUserService,
     getCurrentUserService,
     requestResetService,
-    resetPasswordService
+    resetPasswordService,
+    changePasswordService
 } from "../services/authService";
 import { toast } from "react-toastify";
 import { useContext, useState } from "react";
@@ -191,6 +192,26 @@ export const useUpdateUser = (userId) => {
         },
         onError: (error) => {
             toast.error(error?.message || "Failed to update profile");
+        },
+    });
+};
+
+export const useChangePassword = (userId) => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data) => changePasswordService(userId, data),  // ✅ Correct - calling service layer
+        onSuccess: (data) => {
+            toast.success(data?.message || "Password changed successfully");
+            queryClient.invalidateQueries(["currentUser"]);
+        },
+        onError: (error) => {
+            // Extract the specific error message from backend
+            const errorMessage = error?.response?.data?.message ||
+                error?.message ||
+                "Failed to change password";
+
+            toast.error(errorMessage);
         },
     });
 };

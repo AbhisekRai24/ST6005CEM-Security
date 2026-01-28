@@ -5,7 +5,6 @@ const verifyCaptcha = async (req, res, next) => {
     const { captchaToken, email } = req.body;
 
     try {
-        // Check if user exists and has 3+ failed attempts
         const user = await User.findOne({ email });
         
         let requiresCaptcha = false;
@@ -14,12 +13,10 @@ const verifyCaptcha = async (req, res, next) => {
             requiresCaptcha = true;
         }
 
-        // Skip CAPTCHA verification if not required
         if (!requiresCaptcha) {
             return next();
         }
 
-        // CAPTCHA is required but not provided
         if (!captchaToken) {
             return res.status(400).json({
                 success: false,
@@ -29,7 +26,7 @@ const verifyCaptcha = async (req, res, next) => {
             });
         }
 
-        // Verify CAPTCHA with Cloudflare
+
         const response = await axios.post(
             'https://challenges.cloudflare.com/turnstile/v0/siteverify',
             {
@@ -51,8 +48,6 @@ const verifyCaptcha = async (req, res, next) => {
                 requiresCaptcha: true
             });
         }
-
-        // CAPTCHA verified successfully, proceed to login
         next();
 
     } catch (error) {
